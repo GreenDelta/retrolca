@@ -1,9 +1,60 @@
 import json
-from dataclasses import asdict, dataclass
+import logging
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 import requests
+
+
+log = logging.getLogger(__name__)
+
+
+@dataclass
+class RetroBackendOption:
+    retro_backend: str = "template_relevance"
+    max_num_templates: int = 1000
+    max_cum_prob: float = 0.999
+    retro_model_name: str = "reaxys"
+
+
+@dataclass
+class RetroRequest:
+    smiles: str
+    retro_backend_options: list[RetroBackendOption] = field(
+        default_factory=lambda: [RetroBackendOption()]
+    )
+    retro_rerank_backend: str = "relevance_heuristic"
+    atom_map_backend: str = "rxnmapper"
+    use_fast_filter: bool = True
+    fast_filter_threshold: float = 0.1
+    cluster_precursors: bool = False
+
+    @classmethod
+    def of(
+        cls,
+        smiles: str,
+        retro_backend_options: list[RetroBackendOption] | None = None,
+        retro_rerank_backend: str = "relevance_heuristic",
+        atom_map_backend: str = "rxnmapper",
+        use_fast_filter: bool = True,
+        fast_filter_threshold: float = 0.1,
+        cluster_precursors: bool = False,
+    ) -> "RetroRequest":
+        return cls(
+            smiles=smiles,
+            retro_backend_options=retro_backend_options
+            if retro_backend_options is not None
+            else [RetroBackendOption()],
+            retro_rerank_backend=retro_rerank_backend,
+            atom_map_backend=atom_map_backend,
+            use_fast_filter=use_fast_filter,
+            fast_filter_threshold=fast_filter_threshold,
+            cluster_precursors=cluster_precursors,
+        )
+
+    def payload(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
@@ -14,6 +65,7 @@ class Auth:
 
     @staticmethod
     def read(path: str | Path) -> "Auth":
+        log.info("Loading auth config from %s", path)
         with open(path, "r", encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
             return Auth(
@@ -23,6 +75,7 @@ class Auth:
             )
 
     def write(self, path: str | Path) -> None:
+        log.info("Writing auth config to %s", path)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(asdict(self), f)
 
@@ -32,11 +85,13 @@ class Askcos:
         self.auth = auth
         self.session = requests.Session()
         self.endpoint = auth.endpoint.strip().rstrip("/")
+        log.info("Initialized Askcos client for %s", self.endpoint)
 
     def _p(self, segment: str) -> str:
         return self.endpoint + segment
 
     def login(self) -> Auth:
+        log.info("Requesting API token from %s", self._p("/admin/token"))
         response = self.session.post(
             self._p("/admin/token"),
             data={
@@ -49,10 +104,13 @@ class Askcos:
         payload: dict[str, Any] = response.json()
         access_token = payload["access_token"]
         self.session.headers["Authorization"] = f"Bearer {access_token}"
+        log.info("API token acquired successfully")
         return access_token
 
     def logout(self) -> str:
+        log.info("Logging out via %s", self._p("/admin/logout"))
         response = self.session.post(self._p("/admin/logout"))
         response.raise_for_status()
         self.session.headers.pop("Authorization", None)
+        log.info("Logout completed")
         return response.text
