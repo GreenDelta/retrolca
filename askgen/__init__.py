@@ -1,11 +1,11 @@
 import json
 import logging
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 import requests
-
 
 log = logging.getLogger(__name__)
 
@@ -80,17 +80,17 @@ class Auth:
             json.dump(asdict(self), f)
 
 
-class Askcos:
+class Client:
     def __init__(self, auth: Auth):
         self.auth = auth
         self.session = requests.Session()
         self.endpoint = auth.endpoint.strip().rstrip("/")
-        log.info("Initialized Askcos client for %s", self.endpoint)
+        log.info("Initialized ASKCOS client for %s", self.endpoint)
 
     def _p(self, segment: str) -> str:
         return self.endpoint + segment
 
-    def login(self) -> Auth:
+    def login(self) -> str:
         log.info("Requesting API token from %s", self._p("/admin/token"))
         response = self.session.post(
             self._p("/admin/token"),
@@ -106,6 +106,69 @@ class Askcos:
         self.session.headers["Authorization"] = f"Bearer {access_token}"
         log.info("API token acquired successfully")
         return access_token
+
+    def run(self, request: RetroRequest, priority: int = 0) -> str:
+        log.info(
+            "Submitting retrosynthesis task to %s with priority=%s",
+            self._p("/tree-search/expand-one/call-async"),
+            priority,
+        )
+        response = self.session.post(
+            self._p("/tree-search/expand-one/call-async"),
+            params={"priority": priority},
+            json=request.payload(),
+        )
+        response.raise_for_status()
+
+        task_id = response.json()
+        if not isinstance(task_id, str):
+            raise ValueError(f"Expected task ID string, got: {task_id!r}")
+
+        log.info("Retrosynthesis task submitted: %s", task_id)
+        return task_id
+
+    def poll(
+        self,
+        task_id: str,
+        interval_seconds: float = 1.0,
+        timeout_seconds: float = 300.0,
+    ) -> dict[str, Any]:
+        task_url = self._p(f"/legacy/celery/task/{task_id}/")
+        log.info("Polling task status at %s", task_url)
+
+        started_at = time.monotonic()
+        while True:
+            response = self.session.get(task_url)
+            response.raise_for_status()
+
+            payload: dict[str, Any] = response.json()
+            state = payload.get("state", "UNKNOWN")
+            percent = payload.get("percent")
+            message = payload.get("message", "")
+            log.info(
+                "Task %s state=%s percent=%s message=%s",
+                task_id,
+                state,
+                percent,
+                message,
+            )
+
+            if payload.get("failed"):
+                raise RuntimeError(f"Task {task_id} failed: {message}")
+
+            if payload.get("complete"):
+                output = payload.get("output")
+                if not isinstance(output, dict):
+                    raise ValueError(
+                        f"Task {task_id} completed without output: {payload!r}"
+                    )
+                log.info("Task %s completed successfully", task_id)
+                return output
+
+            if time.monotonic() - started_at >= timeout_seconds:
+                raise TimeoutError(f"Timed out waiting for task {task_id}")
+
+            time.sleep(interval_seconds)
 
     def logout(self) -> str:
         log.info("Logging out via %s", self._p("/admin/logout"))
