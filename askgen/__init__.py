@@ -80,6 +80,42 @@ class Auth:
             json.dump(asdict(self), f)
 
 
+class RetroResult:
+    def __init__(self, data: dict[str, Any]):
+        self.data = data if data else {}
+
+    @property
+    def score(self) -> float:
+        return self.data.get("average_model_score", 0.0)
+
+    @property
+    def outcome(self) -> list[str]:
+        out = self.data.get("outcome")
+        if not isinstance(out, str):
+            return []
+        smiles = []
+        for part in out.split("."):
+            if part != "":
+                smiles.append(part)
+        return smiles
+
+
+class RetroResponse:
+    def __init__(self, data: dict[str, Any]):
+        self.data = data if data else {}
+
+    @property
+    def results(self) -> list[RetroResult]:
+        res = self.data.get("result")
+        if not isinstance(res, list):
+            return []
+        items = []
+        for d in res:
+            if isinstance(d, dict):
+                items.append(RetroResult(d))
+        return items
+
+
 class Client:
     def __init__(self, auth: Auth):
         self.auth = auth
@@ -132,7 +168,7 @@ class Client:
         task_id: str,
         interval_seconds: float = 1.0,
         timeout_seconds: float = 300.0,
-    ) -> dict[str, Any]:
+    ) -> RetroResponse:
         task_url = self._p(f"/legacy/celery/task/{task_id}/")
         log.info("Polling task status at %s", task_url)
 
@@ -163,7 +199,7 @@ class Client:
                         f"Task {task_id} completed without output: {payload!r}"
                     )
                 log.info("Task %s completed successfully", task_id)
-                return output
+                return RetroResponse(output)
 
             if time.monotonic() - started_at >= timeout_seconds:
                 raise TimeoutError(f"Timed out waiting for task {task_id}")
