@@ -6,3 +6,5 @@ reactions = client.expand("C([C@@H]1[C@@H]([C@@H]([C@H]([C@H](O1)O[C@]2([C@H]([C
 
 for r in reactions:
     print(r)
+    print(r.score * r.feasibility)
+    print("------")

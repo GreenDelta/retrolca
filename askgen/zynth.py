@@ -1,15 +1,10 @@
 import json
 from dataclasses import dataclass
 from os import PathLike
+from typing import override
 
+from .proto import Reaction, RetroClient
 import requests
-
-
-@dataclass
-class Reaction:
-    score: float
-    feasibility: float
-    smiles: list[str]
 
 
 @dataclass
@@ -24,13 +19,13 @@ class ZynthConfig:
             return ZynthConfig(**d)
 
 
-class ZynthClient:
-
+class ZynthClient(RetroClient):
     def __init__(self, config: ZynthConfig):
         self.endpoint = config.endpoint.strip().rstrip("/")
         self.session = requests.Session()
         self.session.headers["X-API-Token"] = config.token
 
+    @override
     def expand(self, smiles: str) -> list[Reaction]:
         url = self.endpoint + "/expand"
         resp = self.session.post(url, json={"smiles": smiles})
