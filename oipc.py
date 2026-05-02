@@ -1,5 +1,8 @@
 import olca_ipc as ipc
 import olca_schema as lca
+
+import askgen.oipc as oicp
+
 import askgen.smiles as smiles
 
 from rdkit import Chem
@@ -23,3 +26,6 @@ if __name__ == "__main__":
     code = "C1=NC=NN1"
     print(smiles.mol_weight(code))
     print(smiles.as_uid(code))
+
+    ctx = oicp.Context.load(ipc.Client())
+    print(ctx.mole.name)

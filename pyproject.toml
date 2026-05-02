@@ -10,3 +10,6 @@ dependencies = [
     "rdkit>=2026.3.1",
     "requests>=2.33.1",
 ]
+
+[tool.ruff]
+line-length = 80
