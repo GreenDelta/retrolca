@@ -26,7 +26,7 @@ def main():
 
 if __name__ == "__main__":
     # main()
-    code = "C1=NC=NN1"
+    code = "CCCCN1CCCC1=O"
     ctx = oicp.Context.load(ipc.Client())
     zynth_config = zynth.ZynthConfig.from_file("auth/local-zynth.json")
     zynth_client = zynth.ZynthClient(zynth_config)
