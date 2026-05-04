@@ -1,9 +1,41 @@
 import uuid
+from dataclasses import dataclass
+from typing import Any
 
+import cirpy
 import olca_schema as o
 
 from rdkit import Chem
 from rdkit.Chem import Descriptors
+
+
+@dataclass
+class CirpyInfo:
+    name: str
+    smiles: str
+    formula: str | None
+    inchi: str | None
+    inchi_key: str | None
+
+
+def get_cirpy_info(smiles: str) -> CirpyInfo | None:
+    mol = cirpy.Molecule(smiles)
+    if not mol or not isinstance(mol.iupac_name, str):
+        return None
+    return CirpyInfo(
+        name=mol.iupac_name,
+        smiles=smiles,
+        formula=_str(mol.formula),
+        inchi=_str(mol.stdinchi),
+        inchi_key=_str(mol.stdinchikey),
+    )
+
+
+def _str(v: Any) -> str | None:
+    if isinstance(v, str):
+        return v
+    else:
+        return None
 
 
 def of_flow(flow: o.Flow) -> str | None:

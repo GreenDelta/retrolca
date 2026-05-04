@@ -7,6 +7,7 @@ name = "askgen"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "cirpy" },
     { name = "olca-ipc" },
     { name = "olca-schema" },
     { name = "rdkit" },
@@ -15,6 +16,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cirpy", specifier = ">=1.0.2" },
     { name = "olca-ipc", specifier = ">=2.6.2" },
     { name = "olca-schema", specifier = ">=2.6.2" },
     { name = "rdkit", specifier = ">=2026.3.1" },
@@ -70,6 +72,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/de/32/d92444ad05c7a6e41fb2036749777c163baf7a0301a040cb672d6b2b1ae9/charset_normalizer-3.4.7-cp314-cp314t-win_arm64.whl", hash = "sha256:c35abb8bfff0185efac5878da64c45dafd2b37fb0383add1be155a763c1f083d", size = 153018, upload-time = "2026-04-02T09:27:51.116Z" },
     { url = "https://files.pythonhosted.org/packages/db/8f/61959034484a4a7c527811f4721e75d02d653a35afb0b6054474d8185d4c/charset_normalizer-3.4.7-py3-none-any.whl", hash = "sha256:3dce51d0f5e7951f8bb4900c257dad282f49190fdbebecd4ba99bcc41fef404d", size = 61958, upload-time = "2026-04-02T09:28:37.794Z" },
 ]
+
+[[package]]
+name = "cirpy"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fc/bc/3d7cb58ba6ffcde0d18d3f0e72a22caffe7741485bd1d286fd10d6a9a397/CIRpy-1.0.2.tar.gz", hash = "sha256:b08c1483779e1c8fa6a5da7e383138a33e8396b31f56d827a3bca7c83e689c16", size = 20341, upload-time = "2016-01-04T23:46:47.529Z" }
 
 [[package]]
 name = "idna"

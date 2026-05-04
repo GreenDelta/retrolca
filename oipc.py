@@ -17,7 +17,9 @@ def main():
         if not code:
             continue
         mol = Chem.MolFromSmiles(code)
-        canonicalized = Chem.MolToSmiles(mol, isomericSmiles=True, canonical=True)
+        canonicalized = Chem.MolToSmiles(
+            mol, isomericSmiles=True, canonical=True
+        )
         print(f"{flow.name} :: {code}  :: {canonicalized}")
 
 
@@ -29,3 +31,4 @@ if __name__ == "__main__":
 
     ctx = oicp.Context.load(ipc.Client())
     print(ctx.mole.name)
+    print(smiles.get_cirpy_info(code))

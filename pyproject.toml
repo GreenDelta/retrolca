@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "cirpy>=1.0.2",
     "olca-ipc>=2.6.2",
     "olca-schema>=2.6.2",
     "rdkit>=2026.3.1",
