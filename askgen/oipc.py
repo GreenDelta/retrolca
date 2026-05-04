@@ -89,19 +89,17 @@ def create_product(
     name: str | None = None,
     category: str | None = None,
 ) -> o.Flow | None:
+
+    # a name of the product is required
+    # either it is given or we get it from CIRpy
     info = smiles.get_cirpy_info(smiles_code)
-    product: str | None = None
-    if name:
-        product = name
-    elif info:
-        product = info.name
-    if not product:
+    if not name and not info:
         return None
+    product: str = name if name else info.name  # type: ignore
 
     flow = o.new_product(product, ctx.mass)
     if not flow or not flow.flow_properties:
         return None
-    flow.id = smiles.as_uid(smiles_code)
     flow.category = category
     flow.description = (
         "This product flow was automatically generated from it's SMILES code. "
