@@ -26,9 +26,5 @@ def main():
 if __name__ == "__main__":
     # main()
     code = "C1=NC=NN1"
-    print(smiles.mol_weight(code))
-    print(smiles.as_uid(code))
-
     ctx = oicp.Context.load(ipc.Client())
-    print(ctx.mole.name)
-    print(smiles.get_cirpy_info(code))
+    oicp.create_product(ctx, code, category="Tests")

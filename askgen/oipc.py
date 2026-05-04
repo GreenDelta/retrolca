@@ -1,8 +1,11 @@
 import logging as log
 from dataclasses import dataclass
+from typing import Any
 
 import olca_ipc as ipc
 import olca_schema as o
+
+from . import smiles
 
 # The official openLCA IDs of the quantity types 'mass' and 'chemical amount'.
 # see https://github.com/GreenDelta/data/blob/master/refdata/flow_properties.csv
@@ -78,3 +81,55 @@ class Context:
             kg=kg,
             mole=mole,
         )
+
+
+def create_product(
+    ctx: Context,
+    smiles_code: str,
+    name: str | None = None,
+    category: str | None = None,
+) -> o.Flow | None:
+    info = smiles.get_cirpy_info(smiles_code)
+    product: str | None = None
+    if name:
+        product = name
+    elif info:
+        product = info.name
+    if not product:
+        return None
+
+    flow = o.new_product(product, ctx.mass)
+    if not flow or not flow.flow_properties:
+        return None
+    flow.id = smiles.as_uid(smiles_code)
+    flow.category = category
+    flow.description = (
+        "This product flow was automatically generated from it's SMILES code. "
+        "See also see the additional properties of the flow for more "
+        "information."
+    )
+
+    # add the chemical amount as flow property
+    mw = smiles.mol_weight(smiles_code)
+    if mw <= 0:
+        return None
+    flow.flow_properties.append(
+        o.FlowPropertyFactor(
+            conversion_factor=1000 / mw, flow_property=ctx.chem_amount.to_ref()
+        )
+    )
+
+    # additional properties
+    props: dict[str, Any] = {}
+    flow.other_properties = props
+    props["SMILES"] = smiles_code
+    props["MolarMass"] = mw
+    if info:
+        flow.formula = info.formula
+        if info.inchi:
+            props["InChI-String"] = info.inchi
+        if info.inchi_key:
+            props["InChI-Key"] = info.inchi_key
+
+    ctx.client.put(flow)
+    return flow
