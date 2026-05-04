@@ -40,7 +40,8 @@ class Builder:
         # add input flows
         for si in reaction.smiles:
             smiles_i = smiles.canonicalize(si)
-            match r := oipc.create_product(self.ctx, smiles_i):
+            r = oipc.create_product(self.ctx, smiles_i, category=category)
+            match r:
                 case Failure(error):
                     return Failure(
                         f"Failed to create input flow:\n  -> {error}"
