@@ -1,4 +1,3 @@
-import uuid
 from dataclasses import dataclass
 from typing import Any
 
@@ -60,15 +59,10 @@ def canonicalize(smiles: str) -> str:
     return Chem.MolToSmiles(mol, isomericSmiles=True, canonical=True)
 
 
-def mol_weight(smiles: str) -> float:
+def mol_weight(smiles: str) -> float | None:
     if not smiles or smiles == "":
-        return 0.0
+        return None
     mol = Chem.MolFromSmiles(smiles)
     if not mol:
-        return 0
+        return None
     return Descriptors.MolWt(mol)
-
-
-def as_uid(smiles: str) -> str:
-    uid = uuid.uuid5(uuid.NAMESPACE_OID, smiles)
-    return str(uid)

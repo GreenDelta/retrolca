@@ -5,7 +5,7 @@ import requests
 import olca_schema as o
 from urllib.parse import quote
 
-from . import oipc
+from . import oipc, smiles
 
 
 @dataclass()
@@ -146,8 +146,9 @@ def decorate_flow(ctx: oipc.Context, flow: o.Flow) -> bool:
 
     # add the chemical amount if possible
     mm = ctx.molar_mass_of(flow)
-    if not mm and flow.flow_properties:
-        mm = pug.molar_mass()
+    code = pug.absolute_smiles()
+    if not mm and flow.flow_properties and code:
+        mm = smiles.mol_weight(code)
         mass_prop = ctx.mass_prop_of(flow)
         if mm and mass_prop and mass_prop.is_ref_flow_property:
             flow.flow_properties.append(
