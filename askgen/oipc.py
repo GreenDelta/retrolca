@@ -23,10 +23,10 @@ class Context:
     mole: o.Unit
 
     @staticmethod
-    def load(client: ipc.IpcProtocol):
+    def load(client: ipc.IpcProtocol) -> Res["Context"]:
         mass = client.get(o.FlowProperty, _MASS_ID)
         if not mass:
-            raise Exception(f"Flow property 'Mass' (id={_MASS_ID}) not found")
+            return nil, f"Flow property 'Mass' (id={_MASS_ID}) not found"
         if mass.name != "Mass":
             log.warning(
                 "The name of the flow property '%s' (id=%s) should be 'Mass'",
@@ -34,20 +34,18 @@ class Context:
                 _MASS_ID,
             )
         if not mass.unit_group or not mass.unit_group.id:
-            raise Exception(
-                "Flow property for 'Mass' does not link a unit group"
-            )
+            return nil, "Flow property for 'Mass' does not link a unit group"
 
         mass_units = client.get(o.UnitGroup, mass.unit_group.id)
         if not mass_units or not mass_units.units:
-            raise Exception("No valid unit group for mass units found")
+            return nil, "No valid unit group for mass units found"
         kg = next((u for u in mass_units.units if u.name == "kg"), None)
         if not kg or not kg.is_ref_unit:
-            raise Exception("'kg' is not the reference unit of mass")
+            return nil, "'kg' is not the reference unit of mass"
 
         chem_amount = client.get(o.FlowProperty, _CHEMICAL_AMOUNT_ID)
         if not chem_amount:
-            raise Exception(
+            return nil, (
                 f"Flow property 'Chemical amount' (id={_CHEMICAL_AMOUNT_ID}) "
                 f"not found"
             )
@@ -59,29 +57,79 @@ class Context:
                 _CHEMICAL_AMOUNT_ID,
             )
         if not chem_amount.unit_group or not chem_amount.unit_group.id:
-            raise Exception(
+            return nil, (
                 "Flow property for 'Chemical amount' does not link a unit group"
             )
         chem_amount_units = client.get(o.UnitGroup, chem_amount.unit_group.id)
         if not chem_amount_units or not chem_amount_units.units:
-            raise Exception(
-                "No valid unit group for chemical amount units found"
-            )
+            return nil, "No valid unit group for chemical amount units found"
         mole = next(
             (u for u in chem_amount_units.units if u.name == "mol"), None
         )
         if not mole or not mole.is_ref_unit:
-            raise Exception(
-                "'mol' is not the reference unit of chemical amount"
-            )
+            return nil, "'mol' is not the reference unit of chemical amount"
 
-        return Context(
-            client=client,
-            mass=mass,
-            chem_amount=chem_amount,
-            kg=kg,
-            mole=mole,
+        return (
+            Context(
+                client=client,
+                mass=mass,
+                chem_amount=chem_amount,
+                kg=kg,
+                mole=mole,
+            ),
+            nil,
         )
+
+
+    def molar_mass_of(self, flow: o.Flow) -> float | None:
+        """Returns the molar mass in g/mol of the flow for this context.
+
+        Returns ``None`` if the respective flow properties for mass and chemical
+        amount are not defined in the flow.
+        """
+        if not flow or not flow.flow_properties:
+            return None
+        mass_prop: o.FlowPropertyFactor | None = None
+        chem_prop: o.FlowPropertyFactor | None = None
+        for prop in flow.flow_properties:
+            if not prop.flow_property:
+                continue
+            if prop.flow_property.id == self.mass.id:
+                mass_prop = prop
+                continue
+            if prop.flow_property.id == self.chem_amount.id:
+                chem_prop = prop
+                continue
+        if not mass_prop or not chem_prop:
+            return None
+
+        if mass_prop.is_ref_flow_property:
+            return 1000 / chem_prop.conversion_factor
+        if chem_prop.is_ref_flow_property:
+            return 1000 * mass_prop.conversion_factor
+        return None
+
+
+@dataclass
+class FlowIndex:
+    data: dict[str, o.Flow]
+
+    @staticmethod
+    def load(ctx: Context):
+        log.info(
+            "Build index of chemical products in openLCA with SMILES codes"
+        )
+        data = {}
+        for flow in ctx.client.get_all(o.Flow):
+            code = smiles.of_flow(flow)
+            if not code:
+                continue
+            mm = ctx.molar_mass_of(flow)
+            if not mm:
+                continue
+            data[code] = flow
+        log.info("Created index with %d chemical products", len(data))
+        return FlowIndex(data)
 
 
 def create_product(
