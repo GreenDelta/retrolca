@@ -1,8 +1,7 @@
 import olca_schema as o
 
 from . import proto, oipc, smiles
-from returns.result import Result, Success, Failure
-
+from .res import Res, nil, chain_err
 
 class Builder:
     def __init__(self, ctx: oipc.Context, retro: proto.RetroClient):
@@ -14,21 +13,17 @@ class Builder:
         smiles_code: str,
         name: str | None = None,
         category: str | None = None,
-    ) -> Result[o.Process, str]:
+    ) -> Res[o.Process]:
 
         reactions = self.retro.expand(smiles_code)
         if len(reactions) == 0:
-            return Failure(f"No results for retrosynthesis of: {smiles_code}")
+            return nil, f"No results for retrosynthesis of: {smiles_code}"
         reaction = reactions[0]
 
         # create the reference flow
-        match r := oipc.create_product(self.ctx, smiles_code, name, category):
-            case Failure(error):
-                return Failure(
-                    f"Failed to create reference flow of process:\n  -> {error}"
-                )
-            case _:
-                ref_flow = r.unwrap()
+        ref_flow, err = oipc.create_product(self.ctx, smiles_code, name, category)
+        if err:
+           return chain_err("Failed to create reference flow of process", err)
 
         # create the process
         process = o.new_process(ref_flow.name)  # type: ignore
@@ -40,17 +35,13 @@ class Builder:
         # add input flows
         for si in reaction.smiles:
             smiles_i = smiles.canonicalize(si)
-            r = oipc.create_product(self.ctx, smiles_i, category=category)
-            match r:
-                case Failure(error):
-                    return Failure(
-                        f"Failed to create input flow:\n  -> {error}"
-                    )
-                case _:
-                    in_flow = r.unwrap()
+            in_flow, err = oipc.create_product(self.ctx, smiles_i, category=category)
+            if err:
+                return chain_err("Failed to create input flow", err)
+
             inp = o.new_input(process, in_flow, 1, self.ctx.mole)
             inp.flow_property = self.ctx.chem_amount.to_ref()
 
         self.ctx.client.put(process)
-        return Success(process)
+        return process, nil
 

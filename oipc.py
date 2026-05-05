@@ -1,6 +1,5 @@
 import olca_ipc as ipc
 import olca_schema as lca
-from returns.result import Failure, Success
 
 import askgen.oipc as oicp
 import askgen.procs as procs
@@ -31,8 +30,8 @@ if __name__ == "__main__":
     zynth_config = zynth.ZynthConfig.from_file("auth/local-zynth.json")
     zynth_client = zynth.ZynthClient(zynth_config)
     builder = procs.Builder(ctx, zynth_client)
-    match builder.build(code, category="Test"):
-        case Failure(error):
-            print(f"ERROR: {error}")
-        case Success(process):
-            print(f"Created process: {process.id}")
+    process, err = builder.build(code, category="Test")
+    if err:
+        print(f"ERROR: {err}")
+    else:
+        print(f"Created process: {process.id}")

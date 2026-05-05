@@ -4,9 +4,9 @@ from typing import Any
 
 import olca_ipc as ipc
 import olca_schema as o
-from returns.result import Result, Failure, Success
 
 from . import smiles
+from .res import Res, nil
 
 # The official openLCA IDs of the quantity types 'mass' and 'chemical amount'.
 # see https://github.com/GreenDelta/data/blob/master/refdata/flow_properties.csv
@@ -89,8 +89,7 @@ def create_product(
     smiles_code: str,
     name: str | None = None,
     category: str | None = None,
-) -> Result[o.Flow, str]:
-
+) -> Res[o.Flow]:
     # a name of the product is required
     # either it is given or we get it from CIRpy
     info = smiles.get_cirpy_info(smiles_code)
@@ -104,7 +103,7 @@ def create_product(
 
     flow = o.new_product(product, ctx.mass)
     if not flow or not flow.flow_properties:
-        return Failure("Could not create product flow")
+        return nil, "Could not create product flow"
     flow.category = category
     flow.description = (
         "This product flow was automatically generated from it's SMILES code. "
@@ -115,7 +114,7 @@ def create_product(
     # add the chemical amount as flow property
     mw = smiles.mol_weight(smiles_code)
     if mw <= 0:
-        return Failure(f"Could not calculate the molar mass of: {smiles_code}")
+        return nil, f"Could not calculate the molar mass of: {smiles_code}"
     flow.flow_properties.append(
         o.FlowPropertyFactor(
             conversion_factor=1000 / mw, flow_property=ctx.chem_amount.to_ref()
@@ -135,4 +134,4 @@ def create_product(
             props["InChI-Key"] = info.inchi_key
 
     ctx.client.put(flow)
-    return Success(flow)
+    return flow, nil
