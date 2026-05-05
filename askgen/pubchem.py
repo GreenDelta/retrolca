@@ -1,10 +1,11 @@
-import json
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import requests
+import olca_schema as o
 from urllib.parse import quote
+
+from . import oipc
 
 
 @dataclass()
@@ -106,21 +107,54 @@ def get_component(name: str) -> PugComponent | None:
         return None
 
 
-ROOT = Path(__file__).parent.parent
+def decorate_flow(ctx: oipc.Context, flow: o.Flow) -> bool:
+    if not ctx or not flow or not flow.name:
+        return False
+    pug = get_component(flow.name)
+    if not pug:
+        return False
 
+    # add synonyms
+    syns = set()
+    syns.add(flow.name.strip().lower())
+    if flow.synonyms:
+        for s in flow.synonyms.split(";"):
+            syns.add(s.strip().lower())
+    for s in pug.synonyms():
+        key = s.strip().lower()
+        if key not in syns:
+            if not flow.synonyms or flow.synonyms == "":
+                flow.synonyms = s
+            else:
+                flow.synonyms += "; " + s
 
-def w_example():
-    obj = get_component(
-        "1-(N,N-Bis(2-ethylhexyl)aminomethyl)-4-methylbenzotriazole"
-    )
-    with open(ROOT / "out/pug.json", "w", encoding="utf-8") as f:
-        json.dump(obj.data, f)
-    print(obj)
+    # add additional properties
+    if not flow.other_properties:
+        flow.other_properties = {}
+    props = [
+        ("Connectivity-SMILES", pug.connectivity_smiles()),
+        ("Absolute-SMILES", pug.absolute_smiles()),
+        ("InChI-String", pug.inchi_string()),
+        ("InChI-Key", pug.inchi_key()),
+    ]
+    for key, val in props:
+        if not val:
+            continue
+        if flow.other_properties.get(key):
+            continue
+        flow.other_properties[key] = val
 
-
-if __name__ == "__main__":
-    with open(ROOT / "out/pug.json", "r", encoding="utf-8") as f:
-        data = json.load(f)
-        pug = PugComponent.of(data)
-        print(pug.synonyms())
-        print(pug.molar_mass())
+    # add the chemical amount if possible
+    mm = ctx.molar_mass_of(flow)
+    if not mm and flow.flow_properties:
+        mm = pug.molar_mass()
+        mass_prop = ctx.mass_prop_of(flow)
+        if mm and mass_prop and mass_prop.is_ref_flow_property:
+            flow.flow_properties.append(
+                o.FlowPropertyFactor(
+                    flow_property=ctx.chem_amount.to_ref(),
+                    conversion_factor=1000 / mm,
+                )
+            )
+        flow.other_properties["MolarMass"] = mm
+    return True

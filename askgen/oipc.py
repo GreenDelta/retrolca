@@ -80,6 +80,21 @@ class Context:
             nil,
         )
 
+    def mass_prop_of(self, flow: o.Flow) -> o.FlowPropertyFactor | None:
+        if not flow or not flow.flow_properties:
+            return None
+        for f in flow.flow_properties:
+            if f.flow_property and f.flow_property.id == self.mass.id:
+                return f
+        return None
+
+    def chem_prop_of(self, flow: o.Flow) -> o.FlowPropertyFactor | None:
+        if not flow or not flow.flow_properties:
+            return None
+        for f in flow.flow_properties:
+            if f.flow_property and f.flow_property.id == self.chem_amount.id:
+                return f
+        return None
 
     def molar_mass_of(self, flow: o.Flow) -> float | None:
         """Returns the molar mass in g/mol of the flow for this context.
@@ -89,20 +104,10 @@ class Context:
         """
         if not flow or not flow.flow_properties:
             return None
-        mass_prop: o.FlowPropertyFactor | None = None
-        chem_prop: o.FlowPropertyFactor | None = None
-        for prop in flow.flow_properties:
-            if not prop.flow_property:
-                continue
-            if prop.flow_property.id == self.mass.id:
-                mass_prop = prop
-                continue
-            if prop.flow_property.id == self.chem_amount.id:
-                chem_prop = prop
-                continue
+        mass_prop = self.mass_prop_of(flow)
+        chem_prop = self.chem_prop_of(flow)
         if not mass_prop or not chem_prop:
             return None
-
         if mass_prop.is_ref_flow_property:
             return 1000 / chem_prop.conversion_factor
         if chem_prop.is_ref_flow_property:
