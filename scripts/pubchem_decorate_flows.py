@@ -10,6 +10,10 @@ from askgen import pubchem, oipc, smiles
 def main():
     client = ipc.Client()
     ctx, err = oipc.Context.load(client)
+    if err:
+        print(f"Failed to load context: {err}")
+        return
+
     flows: list[o.Flow] = []
     for flow in client.get_all(o.Flow):
         if should_try(ctx, flow):

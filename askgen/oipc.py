@@ -166,7 +166,7 @@ def create_product(
 
     # add the chemical amount as flow property
     mw = smiles.mol_weight(smiles_code)
-    if mw <= 0:
+    if not mw:
         return nil, f"Could not calculate the molar mass of: {smiles_code}"
     flow.flow_properties.append(
         o.FlowPropertyFactor(
