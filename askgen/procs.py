@@ -9,14 +9,15 @@ class Builder:
     def __init__(
         self,
         ctx: oipc.Context,
-        providers: oipc.ProviderIndex,
         retro: proto.RetroClient,
         max_variants=3,
         max_levels=5,
         category: str | None = None,
     ):
         self.ctx = ctx
-        self.providers = providers
+        log.info("Build provider and flow index")
+        self.providers = oipc.ProviderIndex.of(ctx)
+        self.flows = oipc.FlowIndex.of(ctx)
         self.retro = retro
         self.max_variants = max_variants
         self.max_levels = max_levels
@@ -28,12 +29,11 @@ class Builder:
         name: str | None = None,
         level=0,
     ) -> list[o.Process]:
-        # create the reference flow
-        ref_flow, err = oipc.create_product(
-            self.ctx, smiles_code, name, self.category
+        log.info(
+            "Create processes for SMILES=%s at level=%d", smiles_code, level
         )
-        if err:
-            log.error("Failed to create flow for SMILES: %s", smiles_code)
+        ref_flow = self.__resolve_product(smiles_code, name)
+        if not ref_flow:
             return []
 
         reactions = self.retro.expand(smiles_code)
@@ -52,7 +52,7 @@ class Builder:
             process = self.__init_process(ref_flow, reaction, variant)
             for si in reaction.smiles:
                 smiles_i = smiles.canonicalize(si)
-                provider = self.__resolve_input(smiles_i, level + 1)
+                provider = self.__resolve_provider(smiles_i, level + 1)
                 if not provider:
                     continue
                 inp = o.new_input(
@@ -61,7 +61,10 @@ class Builder:
                 inp.flow_property = self.ctx.chem_amount.to_ref()
                 inp.default_provider = provider.provider
             self.ctx.client.put(process)
+            log.info("Created process %s", process.name)
             processes.append(process)
+            if variant == 1:
+                self.providers.put(smiles_code, process)
         return processes
 
     def __init_process(
@@ -83,17 +86,31 @@ class Builder:
         }
         return process
 
-    def __resolve_input(
+    def __resolve_provider(
         self, smiles_code: str, level: int
     ) -> o.TechFlow | None:
         if p := self.providers.get(smiles_code):
             return p
         if level > self.max_levels:
-            flow, _ = oipc.create_product(
-                self.ctx, smiles_code, category=self.category
-            )
+            flow = self.__resolve_product(smiles_code)
             return o.TechFlow(flow=flow.to_ref()) if flow else None
         processes = self.build(smiles_code, level=level)
         if len(processes) == 0:
             return None
         return self.providers.put(smiles_code, processes[0])
+
+    def __resolve_product(
+        self, smiles_code: str, name: str | None = None
+    ) -> o.Flow | None:
+        flow = self.flows.data.get(smiles_code)
+        if flow:
+            return flow
+        log.info("Create flow for SMILES: %s", smiles_code)
+        flow, err = oipc.create_product(
+            self.ctx, smiles_code, name, self.category
+        )
+        if err:
+            log.error("Failed to create flow for SMILES: %s", smiles_code)
+            return None
+        self.flows.data[smiles_code] = flow
+        return flow
