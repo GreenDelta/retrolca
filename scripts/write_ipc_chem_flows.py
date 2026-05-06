@@ -18,12 +18,12 @@ ROOT = Path(__file__).parent.parent
 
 def main() -> None:
     client = ipc.Client()
-    ctx, err = oipc.Context.load(client)
+    ctx, err = oipc.Context.of(client)
     if err:
         print(f"ERROR: {err}")
         return
 
-    flows = oipc.FlowIndex.load(ctx).data.values()
+    flows = oipc.FlowIndex.of(ctx).data.values()
     out_path = ROOT / "out/scitolub_chems.csv"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

@@ -6,7 +6,7 @@ import olca_ipc as ipc
 import olca_schema as o
 
 from . import smiles
-from .res import Res, nil
+from .res import Res, nil, unwrap
 
 # The official openLCA IDs of the quantity types 'mass' and 'chemical amount'.
 # see https://github.com/GreenDelta/data/blob/master/refdata/flow_properties.csv
@@ -23,7 +23,7 @@ class Context:
     mole: o.Unit
 
     @staticmethod
-    def load(client: ipc.IpcProtocol) -> Res["Context"]:
+    def of(client: ipc.IpcProtocol) -> Res["Context"]:
         mass = client.get(o.FlowProperty, _MASS_ID)
         if not mass:
             return nil, f"Flow property 'Mass' (id={_MASS_ID}) not found"
@@ -120,7 +120,7 @@ class FlowIndex:
     data: dict[str, o.Flow]
 
     @staticmethod
-    def load(ctx: Context):
+    def of(ctx: Context):
         log.info(
             "Build index of chemical products in openLCA with SMILES codes"
         )
@@ -135,6 +135,79 @@ class FlowIndex:
             data[code] = flow
         log.info("Created index with %d chemical products", len(data))
         return FlowIndex(data)
+
+
+@dataclass
+class ProviderIndex:
+    data: dict[str, tuple[o.TechFlow, o.Flow]]
+
+    @classmethod
+    def of(cls, ctx: Context, preferred_location="GLO") -> "ProviderIndex":
+        data = {}
+        provider_idx = cls.__index_providers(ctx.client)
+        for flow in ctx.client.get_all(o.Flow):
+
+            smiles_code = smiles.of_flow(flow)
+            if not smiles_code:
+                continue
+            mm = ctx.molar_mass_of(flow)
+            if not mm:
+                continue
+            providers = provider_idx.get(unwrap(flow.id))
+            if not providers:
+                continue
+
+            score = 0
+            provider: o.TechFlow | None = None
+            for p in providers:
+                if not provider:
+                    provider = p
+                    score = cls.__score_of(p, preferred_location)
+                    continue
+                s = cls.__score_of(p, preferred_location)
+                if s > score:
+                    provider = p
+                    score = s
+            if provider:
+                data[smiles_code] = (provider, flow)
+        return cls(data)
+
+    @staticmethod
+    def __index_providers(
+        client: ipc.IpcProtocol,
+    ) -> dict[str, list[o.TechFlow]]:
+        provider_idx = {}
+        for p in client.get_providers():
+            if not p.flow or not p.flow.id:
+                continue
+            ps = provider_idx.get(p.flow.id)
+            if not ps:
+                ps = []
+                provider_idx[p.flow.id] = ps
+            ps.append(p)
+        return provider_idx
+
+    @staticmethod
+    def __score_of(p: o.TechFlow, location: str) -> float:
+        if not p or not p.flow or not p.provider:
+            return 0.0
+        score = 0.0
+        if p.flow.name and p.provider.name:
+            market_prefix = "market for " + p.flow.name
+            prod_prefix = p.flow.name + " production"
+            if p.provider.name.startswith(market_prefix):
+                score += 8
+            elif p.provider.name.startswith(prod_prefix):
+                score += 5
+
+        if p.provider.location:
+            if p.provider.location == location:
+                score += 10
+            elif p.provider.location == "GLO":
+                score += 5
+            elif p.provider.location == "RoW":
+                score += 2
+        return score
 
 
 def create_product(

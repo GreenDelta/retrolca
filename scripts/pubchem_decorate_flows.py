@@ -9,7 +9,7 @@ from askgen import pubchem, oipc, smiles
 
 def main():
     client = ipc.Client()
-    ctx, err = oipc.Context.load(client)
+    ctx, err = oipc.Context.of(client)
     if err:
         print(f"Failed to load context: {err}")
         return
