@@ -139,14 +139,13 @@ class FlowIndex:
 
 @dataclass
 class ProviderIndex:
-    data: dict[str, tuple[o.TechFlow, o.Flow]]
+    data: dict[str, o.TechFlow]
 
     @classmethod
     def of(cls, ctx: Context, preferred_location="GLO") -> "ProviderIndex":
         data = {}
         provider_idx = cls.__index_providers(ctx.client)
         for flow in ctx.client.get_all(o.Flow):
-
             smiles_code = smiles.of_flow(flow)
             if not smiles_code:
                 continue
@@ -169,7 +168,7 @@ class ProviderIndex:
                     provider = p
                     score = s
             if provider:
-                data[smiles_code] = (provider, flow)
+                data[smiles_code] = provider
         return cls(data)
 
     @staticmethod
@@ -208,6 +207,19 @@ class ProviderIndex:
             elif p.provider.location == "RoW":
                 score += 2
         return score
+
+    def get(self, smiles_code: str) -> o.TechFlow | None:
+        return self.data.get(smiles_code)
+
+    def put(self, smiles_code: str, process: o.Process) -> o.TechFlow:
+        flow_ref: o.Ref | None = None
+        for e in unwrap(process.exchanges):
+            if e.is_quantitative_reference:
+                flow_ref = e.flow
+                break
+        provider = o.TechFlow(flow=flow_ref, provider=process.to_ref())
+        self.data[smiles_code] = provider
+        return provider
 
 
 def create_product(
