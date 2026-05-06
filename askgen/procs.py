@@ -114,3 +114,12 @@ class Builder:
             return None
         self.flows.data[smiles_code] = flow
         return flow
+
+    def __add_reaction_source(self, process: o.Process, smiles_code: str, reaction: proto.Reaction):
+        source = o.Source(name=process.name)
+        self.ctx.client.put()
+
+        process.process_documentation = o.ProcessDocumentation()
+        process.process_documentation.sources = [
+            source.to_ref()
+        ]
