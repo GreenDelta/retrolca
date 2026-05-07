@@ -22,7 +22,7 @@ def get_cirpy_info(smiles: str) -> CirpyInfo | None:
     if not mol or not isinstance(mol.iupac_name, str):
         return None
     return CirpyInfo(
-        name=mol.iupac_name,
+        name=mol.iupac_name.lower() if mol.iupac_name else smiles,
         smiles=smiles,
         formula=_str(mol.formula),
         inchi=_str(mol.stdinchi),
