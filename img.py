@@ -29,7 +29,6 @@ def main():
         name = info.name if info else c
         names.append(name)
 
-    # Ein Gitter mit 4 Spalten erstellen
     img = Draw.MolsToGridImage(
         mols,
         molsPerRow=len(reaction.smiles),
@@ -53,6 +52,7 @@ def main():
     data = base64.b64decode(img_str)
     with open("out/b64.png", "wb") as f:
         f.write(data)
+
 
 if __name__ == "__main__":
     main()
