@@ -16,14 +16,14 @@ _CHEMICAL_AMOUNT_ID = "341fd786-b2ad-4552-a762-5eafcab45dee"
 
 @dataclass
 class Context:
-    client: ipc.IpcProtocol
+    client: ipc.ProtoClient
     mass: o.FlowProperty
     chem_amount: o.FlowProperty
     kg: o.Unit
     mole: o.Unit
 
     @staticmethod
-    def of(client: ipc.IpcProtocol) -> Res["Context"]:
+    def of(client: ipc.ProtoClient) -> Res["Context"]:
         mass = client.get(o.FlowProperty, _MASS_ID)
         if not mass:
             return nil, f"Flow property 'Mass' (id={_MASS_ID}) not found"
@@ -173,7 +173,7 @@ class ProviderIndex:
 
     @staticmethod
     def __index_providers(
-        client: ipc.IpcProtocol,
+        client: ipc.ProtoClient,
     ) -> dict[str, list[o.TechFlow]]:
         provider_idx = {}
         for p in client.get_providers():

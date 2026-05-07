@@ -17,7 +17,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "cirpy", specifier = ">=1.0.2" },
-    { name = "olca-ipc", specifier = ">=2.6.2" },
+    { name = "olca-ipc", editable = "../../openLCA/ipc/repos/olca-ipc.py" },
     { name = "olca-schema", specifier = ">=2.6.2" },
     { name = "rdkit", specifier = ">=2026.3.1" },
     { name = "requests", specifier = ">=2.33.1" },
@@ -120,15 +120,21 @@ wheels = [
 [[package]]
 name = "olca-ipc"
 version = "2.6.2"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "../../openLCA/ipc/repos/olca-ipc.py" }
 dependencies = [
     { name = "olca-schema" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/16/4f/b15498a60b7fddc13c46e7548afc97155c9fd977d4fe08cf8b847fd80f08/olca_ipc-2.6.2.tar.gz", hash = "sha256:b4da5b9d19fc4c911ebd0b4a42f008c2dc854d84382884309330503e4973ab14", size = 21991, upload-time = "2026-04-27T18:17:21.23Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/08/14/b4357a6a5b9f54c48d990037c2f8f8af83f3610966d71858be122ccefb53/olca_ipc-2.6.2-py3-none-any.whl", hash = "sha256:4cbe0288f450425bb270e5d84d0d277d171f31a616d0fb04e1ca2b52c3c89bc9", size = 16849, upload-time = "2026-04-27T18:17:20.007Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "build", marker = "extra == 'packaging'", specifier = ">=1.4" },
+    { name = "olca-schema", specifier = ">=2.6.2" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=9.0" },
+    { name = "requests", specifier = ">=2.33.1" },
+    { name = "twine", marker = "extra == 'packaging'", specifier = ">=6.2" },
 ]
+provides-extras = ["test", "packaging"]
 
 [[package]]
 name = "olca-schema"

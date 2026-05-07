@@ -1,3 +1,8 @@
+import base64
+import io
+
+import olca_ipc as ipc
+import olca_schema as o
 import askgen.zynth as z
 import askgen.smiles as smiles
 
@@ -11,7 +16,6 @@ def main():
     product = "CCCCN1CCCC1=O"
     reaction = client.expand(product)[0]
 
-    # +begin_src python
     codes = []
     for s in reaction.smiles:
         codes.append(s)
@@ -32,9 +36,23 @@ def main():
         subImgSize=(200, 200),
         legends=names,
     )
-    img.save("raster.png")  # Oder einfach im Notebook anzeigen
-    # +end_src
+    # img.save("raster.png")
 
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+
+    img_str = base64.b64encode(buffer.getvalue()).decode("ascii")
+    print(img_str)
+
+    client = ipc.Client()
+    source = o.Source(name="Some example with image", category="Inbox")
+    client.put(source)
+    file_data = ipc.FileData("reaction.png", img_str)
+    client.put_source_file(source, file_data)
+
+    data = base64.b64decode(img_str)
+    with open("out/b64.png", "wb") as f:
+        f.write(data)
 
 if __name__ == "__main__":
     main()

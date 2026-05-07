@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "cirpy>=1.0.2",
-    "olca-ipc>=2.6.2",
+    "olca-ipc @ file:///home/ms/Projects/openLCA/ipc/repos/olca-ipc.py",
     "olca-schema>=2.6.2",
     "rdkit>=2026.3.1",
     "requests>=2.33.1",
@@ -14,3 +14,6 @@ dependencies = [
 
 [tool.ruff]
 line-length = 80
+
+[tool.uv.sources]
+olca-ipc = { path = "/home/ms/Projects/openLCA/ipc/repos/olca-ipc.py", editable = true }
