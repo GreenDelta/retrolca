@@ -1,36 +1,20 @@
 import logging
+from pathlib import Path
 
 import olca_ipc as ipc
 
-import retrolca.oipc as oipc
-import retrolca.procs as procs
-import retrolca.zynth as z
-
-
-def test_zynth():
-    config = z.ZynthConfig.from_file("auth/local-zynth.json")
-    client = z.ZynthClient(config)
-    reactions, err = client.expand("CCCCN1CCCC1=O")
-    if err:
-        print(err)
-        return
-    assert reactions is not None
-
-    for r in reactions:
-        print(r)
-        print(r.score * r.feasibility)
-        print("------")
+import retrolca as zn
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    config = z.ZynthConfig.from_file("auth/local-zynth.json")
-    zynth_client = z.ZynthClient(config)
-    ctx, _ = oipc.IpcContext.of(ipc.Client())
+    config = Path(__file__).parent / "models/config.yml"
+    tool = zn.ZynthTool(config)
+    ctx, _ = zn.IpcContext.of(ipc.Client())
     assert ctx
-    builder = procs.ProcessBuilder(
+    builder = zn.ProcessBuilder(
         ctx,
-        zynth_client,
+        tool,
         category="Retrosynthesis/Inbox",
         max_levels=5,
         max_variants=2,

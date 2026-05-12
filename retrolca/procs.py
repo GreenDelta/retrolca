@@ -1,6 +1,6 @@
 import base64
 import io
-import logging as log
+import logging
 
 import olca_ipc as ipc
 import olca_schema as o
@@ -9,6 +9,8 @@ from rdkit.Chem import Draw
 
 from . import oipc, proto, smiles
 from .res import unwrap
+
+log = logging.getLogger(__name__)
 
 
 class ProcessBuilder:

@@ -2,7 +2,7 @@ from .askcos import AskcosClient, AskcosConfig, AskcosModel
 from .oipc import FlowIndex, IpcContext, ProviderIndex
 from .procs import ProcessBuilder
 from .proto import Reaction, RetroClient
-from .zynth import ZynthClient, ZynthConfig
+from .zynth import ZynthClient, ZynthConfig, ZynthTool
 
 __all__ = [
     "AskcosClient",
@@ -17,4 +17,5 @@ __all__ = [
     "ZynthConfig",
     "ZynthClient",
     "ProcessBuilder",
+    "ZynthTool",
 ]
