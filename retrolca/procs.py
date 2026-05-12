@@ -78,8 +78,7 @@ class ProcessBuilder:
                 err,
             )
             return []
-        assert reactions
-        if len(reactions) == 0:
+        if not isinstance(reactions, list) or len(reactions) == 0:
             log.info("No retrosynthesis results retrieved for: %s", smiles_code)
             return []
 
