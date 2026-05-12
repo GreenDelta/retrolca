@@ -3,11 +3,11 @@ import io
 
 import olca_ipc as ipc
 import olca_schema as o
-import askgen.zynth as z
-import askgen.smiles as smiles
-
 from rdkit import Chem
 from rdkit.Chem import Draw
+
+import retrolca.smiles as smiles
+import retrolca.zynth as z
 
 
 def main():

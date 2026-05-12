@@ -1,16 +1,17 @@
 import olca_ipc as ipc
 import olca_schema as o
 
-from askgen import oipc
-from askgen.res import unwrap
+from retrolca import oipc
+from retrolca.res import unwrap
 
 
 def main():
     client = ipc.Client()
     ctx, _ = oipc.Context.of(client)
+    assert ctx
     providers = oipc.ProviderIndex.of(ctx)
-    for provider, flow in providers.data.values():
-        print(f"{flow.name} --> {name_of(provider)}")
+    for smiles, provider in providers.data.items():
+        print(f"{smiles} --> {name_of(provider)}")
 
 
 def name_of(provider: o.TechFlow) -> str:

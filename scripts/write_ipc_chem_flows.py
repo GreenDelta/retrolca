@@ -10,8 +10,7 @@ from pathlib import Path
 
 import olca_ipc as ipc
 
-from askgen import smiles
-from askgen import oipc
+from retrolca import oipc, smiles
 
 ROOT = Path(__file__).parent.parent
 
@@ -22,8 +21,9 @@ def main() -> None:
     if err:
         print(f"ERROR: {err}")
         return
+    assert ctx
 
-    flows = oipc.FlowIndex.of(ctx).data.values()
+    flow_idx = oipc.FlowIndex.of(ctx)
     out_path = ROOT / "out/scitolub_chems.csv"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -41,10 +41,10 @@ def main() -> None:
             ]
         )
 
-        for flow in flows:
+        for code, flow in flow_idx.data.items():
             mm_decl = ctx.molar_mass_of(flow)
-            code = smiles.of_flow(flow)
             mm_calc = smiles.mol_weight(code)
+            assert flow.flow_properties
             mass_prop = next(
                 prop
                 for prop in flow.flow_properties

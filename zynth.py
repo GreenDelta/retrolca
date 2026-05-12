@@ -2,9 +2,9 @@ import logging
 
 import olca_ipc as ipc
 
-import askgen.zynth as z
-import askgen.oipc as oipc
-import askgen.procs as procs
+import retrolca.oipc as oipc
+import retrolca.procs as procs
+import retrolca.zynth as z
 
 
 def test_zynth():
@@ -23,12 +23,13 @@ def main():
     config = z.ZynthConfig.from_file("auth/local-zynth.json")
     zynth_client = z.ZynthClient(config)
     ctx, _ = oipc.Context.of(ipc.Client())
+    assert ctx
     builder = procs.Builder(
         ctx,
         zynth_client,
         category="Retrosynthesis/Inbox",
         max_levels=5,
-        max_variants=2
+        max_variants=2,
     )
     builder.build("CCCCN1CCCC1=O", "1-butylpyrrolidin-2-one")
 

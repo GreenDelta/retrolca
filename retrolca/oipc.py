@@ -1,6 +1,6 @@
 import logging as log
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import olca_ipc as ipc
 import olca_schema as o
@@ -109,9 +109,9 @@ class Context:
         if not mass_prop or not chem_prop:
             return None
         if mass_prop.is_ref_flow_property:
-            return 1000 / chem_prop.conversion_factor
+            return 1000 / cast(float, chem_prop.conversion_factor)
         if chem_prop.is_ref_flow_property:
-            return 1000 * mass_prop.conversion_factor
+            return 1000 * cast(float, mass_prop.conversion_factor)
         return None
 
 
@@ -120,7 +120,7 @@ class FlowIndex:
     data: dict[str, o.Flow]
 
     @staticmethod
-    def of(ctx: Context):
+    def of(ctx: Context) -> "FlowIndex":
         log.info(
             "Build index of chemical products in openLCA with SMILES codes"
         )
@@ -235,7 +235,7 @@ def create_product(
     if name:
         product = name
     elif info:
-        product = info.name  # type: ignore
+        product = info.name
     else:
         product = smiles_code
 

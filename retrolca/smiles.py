@@ -3,7 +3,6 @@ from typing import Any
 
 import cirpy
 import olca_schema as o
-
 from rdkit import Chem
 from rdkit.Chem import Descriptors
 
@@ -65,4 +64,4 @@ def mol_weight(smiles: str) -> float | None:
     mol = Chem.MolFromSmiles(smiles)
     if not mol:
         return None
-    return Descriptors.MolWt(mol)
+    return Descriptors.MolWt(mol)  # ty: ignore

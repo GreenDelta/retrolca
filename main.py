@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 
-import askgen as ask
+import retrolca as ask
 
 
 def main():

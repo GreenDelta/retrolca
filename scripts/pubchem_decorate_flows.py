@@ -4,7 +4,7 @@ import time
 import olca_ipc as ipc
 import olca_schema as o
 
-from askgen import pubchem, oipc, smiles
+from retrolca import oipc, pubchem, smiles
 
 
 def main():
@@ -13,6 +13,7 @@ def main():
     if err:
         print(f"Failed to load context: {err}")
         return
+    assert ctx
 
     flows: list[o.Flow] = []
     for flow in client.get_all(o.Flow):
