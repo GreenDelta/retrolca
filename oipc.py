@@ -7,7 +7,7 @@ from retrolca.res import unwrap
 
 def main():
     client = ipc.Client()
-    ctx, _ = oipc.Context.of(client)
+    ctx, _ = oipc.IpcContext.of(client)
     assert ctx
     providers = oipc.ProviderIndex.of(ctx)
     for smiles, provider in providers.data.items():

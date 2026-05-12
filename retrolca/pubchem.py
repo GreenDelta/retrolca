@@ -107,7 +107,7 @@ def get_component(name: str) -> PugComponent | None:
         return None
 
 
-def decorate_flow(ctx: oipc.Context, flow: o.Flow) -> bool:
+def decorate_flow(ctx: oipc.IpcContext, flow: o.Flow) -> bool:
     if not ctx or not flow or not flow.name:
         return False
     pug = get_component(flow.name)

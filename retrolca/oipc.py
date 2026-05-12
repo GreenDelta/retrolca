@@ -15,7 +15,7 @@ _CHEMICAL_AMOUNT_ID = "341fd786-b2ad-4552-a762-5eafcab45dee"
 
 
 @dataclass
-class Context:
+class IpcContext:
     client: ipc.ProtoClient
     mass: o.FlowProperty
     chem_amount: o.FlowProperty
@@ -23,7 +23,7 @@ class Context:
     mole: o.Unit
 
     @staticmethod
-    def of(client: ipc.ProtoClient) -> Res["Context"]:
+    def of(client: ipc.ProtoClient) -> Res["IpcContext"]:
         mass = client.get(o.FlowProperty, _MASS_ID)
         if not mass:
             return nil, f"Flow property 'Mass' (id={_MASS_ID}) not found"
@@ -70,7 +70,7 @@ class Context:
             return nil, "'mol' is not the reference unit of chemical amount"
 
         return (
-            Context(
+            IpcContext(
                 client=client,
                 mass=mass,
                 chem_amount=chem_amount,
@@ -120,7 +120,7 @@ class FlowIndex:
     data: dict[str, o.Flow]
 
     @staticmethod
-    def of(ctx: Context) -> "FlowIndex":
+    def of(ctx: IpcContext) -> "FlowIndex":
         log.info(
             "Build index of chemical products in openLCA with SMILES codes"
         )
@@ -142,7 +142,7 @@ class ProviderIndex:
     data: dict[str, o.TechFlow]
 
     @classmethod
-    def of(cls, ctx: Context, preferred_location="GLO") -> "ProviderIndex":
+    def of(cls, ctx: IpcContext, preferred_location="GLO") -> "ProviderIndex":
         data = {}
         provider_idx = cls.__index_providers(ctx.client)
         for flow in ctx.client.get_all(o.Flow):
@@ -223,7 +223,7 @@ class ProviderIndex:
 
 
 def create_product(
-    ctx: Context,
+    ctx: IpcContext,
     smiles_code: str,
     name: str | None = None,
     category: str | None = None,

@@ -2,20 +2,19 @@ import base64
 import io
 import logging as log
 
-import olca_schema as o
 import olca_ipc as ipc
-
+import olca_schema as o
 from rdkit import Chem
 from rdkit.Chem import Draw
 
-from . import proto, oipc, smiles
+from . import oipc, proto, smiles
 from .res import unwrap
 
 
-class Builder:
+class ProcessBuilder:
     def __init__(
         self,
-        ctx: oipc.Context,
+        ctx: oipc.IpcContext,
         retro: proto.RetroClient,
         max_variants=3,
         max_levels=5,
@@ -82,7 +81,7 @@ class Builder:
         reaction: proto.Reaction,
         variant: int,
         product_smiles: str,
-        level: int
+        level: int,
     ):
         score = reaction.score * reaction.feasibility
         name = (
@@ -130,6 +129,7 @@ class Builder:
         if err:
             log.error("Failed to create flow for SMILES: %s", smiles_code)
             return None
+        assert flow
         self.flows.data[smiles_code] = flow
         return flow
 

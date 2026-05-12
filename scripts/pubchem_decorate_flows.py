@@ -4,12 +4,13 @@ import time
 import olca_ipc as ipc
 import olca_schema as o
 
-from retrolca import oipc, pubchem, smiles
+import retrolca as retro
+from retrolca import pubchem, smiles
 
 
 def main():
     client = ipc.Client()
-    ctx, err = oipc.Context.of(client)
+    ctx, err = retro.IpcContext.of(client)
     if err:
         print(f"Failed to load context: {err}")
         return
@@ -49,7 +50,7 @@ def main():
         time.sleep(0.3)
 
 
-def should_try(ctx: oipc.Context, flow: o.Flow) -> bool:
+def should_try(ctx: retro.IpcContext, flow: o.Flow) -> bool:
     # only try product flows with a category and name given
     if not flow or flow.flow_type != o.FlowType.PRODUCT_FLOW:
         return False

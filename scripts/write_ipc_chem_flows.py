@@ -17,7 +17,7 @@ ROOT = Path(__file__).parent.parent
 
 def main() -> None:
     client = ipc.Client()
-    ctx, err = oipc.Context.of(client)
+    ctx, err = oipc.IpcContext.of(client)
     if err:
         print(f"ERROR: {err}")
         return

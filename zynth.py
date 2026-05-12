@@ -22,9 +22,9 @@ def main():
     logging.basicConfig(level=logging.INFO)
     config = z.ZynthConfig.from_file("auth/local-zynth.json")
     zynth_client = z.ZynthClient(config)
-    ctx, _ = oipc.Context.of(ipc.Client())
+    ctx, _ = oipc.IpcContext.of(ipc.Client())
     assert ctx
-    builder = procs.Builder(
+    builder = procs.ProcessBuilder(
         ctx,
         zynth_client,
         category="Retrosynthesis/Inbox",

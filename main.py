@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 
-import retrolca as ask
+import retrolca as r
 
 
 def main():
@@ -31,9 +31,9 @@ def main():
 
     # auth_file = "auth/local.json"
     auth_file = "auth/remote.json"
-    auth = ask.Auth.read(auth_file)
+    auth = r.AskcosConfig.read(auth_file)
 
-    client = ask.Client(auth)
+    client = r.AskcosClient(auth)
     client.login()
 
     for name, input in inputs:
@@ -42,7 +42,7 @@ def main():
         if csv_path.exists():
             continue
 
-        req = ask.RetroRequest.of(input)
+        req = r.AskcosRequest.of(input)
         task_id = client.run(req)
         resp = client.poll(task_id)
 
