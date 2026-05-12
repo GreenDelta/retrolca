@@ -13,3 +13,4 @@ wheels/
 auth/
 out/
 .idea/
+.vscode/

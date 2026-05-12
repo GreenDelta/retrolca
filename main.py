@@ -1,4 +1,3 @@
-import json
 import logging
 from pathlib import Path
 
@@ -42,22 +41,17 @@ def main():
         if csv_path.exists():
             continue
 
-        req = r.AskcosRequest.of(input)
-        task_id = client.run(req)
-        resp = client.poll(task_id)
+        reactions = client.expand(input)
 
         csv = name + " :: " + input + ":\n"
-        for result in resp.results:
-            csv += str(result.score)
-            for smiles in result.outcome:
+        for reaction in reactions:
+            csv += str(reaction.score)
+            for smiles in reaction.smiles:
                 csv += "," + smiles
             csv += "\n"
 
         with open(csv_path, "w", encoding="utf-8") as f:
             f.write(csv)
-
-        with open(f"out/{file_name}.json", "w", encoding="utf-8") as f:
-            json.dump(resp.data, f)
 
     client.logout()
 
