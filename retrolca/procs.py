@@ -41,15 +41,9 @@ class ProcessBuilder:
         ref_flow = self.__resolve_product(smiles_code, name)
         if not ref_flow:
             return []
-
-        reactions = self.retro.expand(smiles_code)
+        reactions = self.__get_reactions(smiles_code)
         if len(reactions) == 0:
-            log.info("No retrosynthesis results retrieved for: %s", smiles_code)
             return []
-
-        reactions.sort(key=lambda r: r.score * r.feasibility, reverse=True)
-        if len(reactions) > self.max_variants:
-            reactions = reactions[0 : self.max_variants]
 
         variant = 0
         processes = []
@@ -74,6 +68,25 @@ class ProcessBuilder:
             if variant == 1:
                 self.providers.put(smiles_code, process)
         return processes
+
+    def __get_reactions(self, smiles_code: str) -> list[proto.Reaction]:
+        reactions, err = self.retro.expand(smiles_code)
+        if err:
+            log.info(
+                "No retrosynthesis results retrieved for %s: %s",
+                smiles_code,
+                err,
+            )
+            return []
+        assert reactions
+        if len(reactions) == 0:
+            log.info("No retrosynthesis results retrieved for: %s", smiles_code)
+            return []
+
+        reactions.sort(key=lambda r: r.score * r.feasibility, reverse=True)
+        if len(reactions) > self.max_variants:
+            reactions = reactions[0 : self.max_variants]
+        return reactions
 
     def __init_process(
         self,

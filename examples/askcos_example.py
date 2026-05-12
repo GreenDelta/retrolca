@@ -1,7 +1,7 @@
 import logging as log
 from pathlib import Path
 
-from retrolca import AskcosClient, AskcosConfig
+from retrolca import AskcosClient, AskcosConfig, AskcosModel
 
 
 def main():
@@ -12,8 +12,9 @@ def main():
         Path(__file__).parent.parent / "auth/remote-askcos.json"
     )
 
-    with AskcosClient(config, model="pistachio") as client:
-        reactions = client.expand("CCOP(=O)(OCC)OCC")
+    with AskcosClient(config, model=AskcosModel.PISTACHIO) as client:
+        reactions, _ = client.expand("CCOP(=O)(OCC)OCC")
+        assert reactions
         for r in reactions:
             print(r)
 

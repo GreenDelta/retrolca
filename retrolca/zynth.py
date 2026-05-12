@@ -4,6 +4,7 @@ from os import PathLike
 from typing import override
 
 from .proto import Reaction, RetroClient
+from .res import Res, nil
 import requests
 
 
@@ -25,9 +26,21 @@ class ZynthClient(RetroClient):
         self.session = requests.Session()
         self.session.headers["X-API-Token"] = config.token
 
+    def __enter__(self) -> "ZynthClient":
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
+
     @override
-    def expand(self, smiles: str) -> list[Reaction]:
-        url = self.endpoint + "/expand"
-        resp = self.session.post(url, json={"smiles": smiles})
-        resp.raise_for_status()
-        return [Reaction(**d) for d in resp.json()]
+    def expand(self, smiles: str) -> Res[list[Reaction]]:
+        try:
+            url = self.endpoint + "/expand"
+            resp = self.session.post(url, json={"smiles": smiles})
+            resp.raise_for_status()
+            return [Reaction(**d) for d in resp.json()], nil
+        except Exception as err:
+            return nil, str(err)
+
+    def close(self) -> None:
+        self.session.close()

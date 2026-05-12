@@ -39,7 +39,11 @@ def main():
             if csv_path.exists():
                 continue
 
-            reactions = client.expand(input)
+            reactions, err = client.expand(input)
+            if err:
+                logging.error("ASKCOS expansion failed for %s: %s", input, err)
+                continue
+            assert reactions is not None
 
             csv = name + " :: " + input + ":\n"
             for reaction in reactions:

@@ -14,7 +14,11 @@ def main():
     config = z.ZynthConfig.from_file("auth/local-zynth.json")
     client = z.ZynthClient(config)
     product = "CCCCN1CCCC1=O"
-    reaction = client.expand(product)[0]
+    reactions, err = client.expand(product)
+    if err:
+        raise RuntimeError(err)
+    assert reactions is not None
+    reaction = reactions[0]
 
     codes = []
     for s in reaction.smiles:

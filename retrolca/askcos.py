@@ -2,24 +2,25 @@ import json
 import logging
 import time
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal, override
+from typing import Any, override
 
 import requests
 
 from .proto import Reaction, RetroClient
+from .res import Res, chain_err, nil
 
 log = logging.getLogger(__name__)
 
 
-RetroModel = Literal[
-    "bkms_metabolic",
-    "pistachio",
-    "pistachio_ringbreaker",
-    "reaxys",
-    "reaxys_biocatalysis",
-    "uspto_higher_level",
-]
+class AskcosModel(StrEnum):
+    BKMS_METABOLIC = "bkms_metabolic"
+    PISTACHIO = "pistachio"
+    PISTACHIO_RINGBREAKER = "pistachio_ringbreaker"
+    REAXYS = "reaxys"
+    REAXYS_BIOCATALYSIS = "reaxys_biocatalysis"
+    USPTO_HIGHER_LEVEL = "uspto_higher_level"
 
 
 @dataclass
@@ -36,7 +37,7 @@ class AskcosConfig:
 
 
 def _request_of(
-    smiles_code: str, model: RetroModel = "pistachio"
+    smiles_code: str, model: AskcosModel = AskcosModel.PISTACHIO
 ) -> dict[str, Any]:
     return {
         "smiles": smiles_code,
@@ -45,7 +46,7 @@ def _request_of(
                 "retro_backend": "template_relevance",
                 "max_num_templates": 1000,
                 "max_cum_prob": 0.999,
-                "retro_model_name": model,
+                "retro_model_name": model.value,
             }
         ],
         "retro_rerank_backend": "relevance_heuristic",
@@ -97,7 +98,11 @@ def _reaction_of(result: dict[str, Any]) -> Reaction | None:
 
 
 class AskcosClient(RetroClient):
-    def __init__(self, config: AskcosConfig, model: RetroModel = "pistachio"):
+    def __init__(
+        self,
+        config: AskcosConfig,
+        model: AskcosModel = AskcosModel.PISTACHIO,
+    ):
         self.session = requests.Session()
         self.endpoint = config.endpoint.strip().rstrip("/")
         self.model = model
@@ -127,53 +132,67 @@ class AskcosClient(RetroClient):
         return self.endpoint + segment
 
     @override
-    def expand(self, smiles: str) -> list[Reaction]:
-        try:
-            task_id = self._call(smiles)
-            return self._poll(task_id)
-        except Exception:
-            return []
+    def expand(self, smiles: str) -> Res[list[Reaction]]:
+        task_id, err = self._call(smiles)
+        if err is not None:
+            return chain_err(
+                f"ASKCOS expansion request failed for {smiles}", err
+            )
 
-    def _call(self, smiles_code) -> str:
+        assert task_id is not None
+        reactions, err = self._poll(task_id)
+        if err is not None:
+            return chain_err(f"ASKCOS expansion failed for {smiles}", err)
+        assert reactions is not None
+        return reactions, nil
+
+    def _call(self, smiles_code: str) -> Res[str]:
         log.info("Submitting retrosynthesis task for: %s", smiles_code)
-        req = _request_of(smiles_code, self.model)
-        response = self.session.post(
-            self._p("/tree-search/expand-one/call-async"),
-            params={"priority": 0},
-            json=req,
-        )
-        response.raise_for_status()
+        try:
+            req = _request_of(smiles_code, self.model)
+            response = self.session.post(
+                self._p("/tree-search/expand-one/call-async"),
+                params={"priority": 0},
+                json=req,
+            )
+            response.raise_for_status()
 
-        task_id = response.json()
-        if not isinstance(task_id, str):
-            raise ValueError(f"Expected task ID string, got: {task_id!r}")
+            task_id = response.json()
+            if not isinstance(task_id, str):
+                return nil, f"Expected task ID string, got: {task_id!r}"
 
-        log.info("Retrosynthesis task submitted: %s", task_id)
-        return task_id
+            log.info("Retrosynthesis task submitted: %s", task_id)
+            return task_id, nil
+        except Exception as err:
+            return nil, str(err)
 
     def _poll(
         self,
         task_id: str,
         interval_seconds: float = 1.0,
         timeout_seconds: float = 300.0,
-    ) -> list[Reaction]:
+    ) -> Res[list[Reaction]]:
         task_url = self._p(f"/legacy/celery/task/{task_id}/")
         log.info("Polling task status at %s", task_url)
 
         started_at = time.monotonic()
         while True:
-            resp = self.session.get(task_url)
-            resp.raise_for_status()
-            data: dict[str, Any] = resp.json()
+            try:
+                resp = self.session.get(task_url)
+                resp.raise_for_status()
+                data: dict[str, Any] = resp.json()
+            except Exception as err:
+                return nil, str(err)
+
             if data.get("failed"):
                 message = data.get("message", "no details available")
-                raise RuntimeError(f"Task {task_id} failed: {message}")
+                return nil, f"Task {task_id} failed: {message}"
 
             if data.get("complete"):
-                return _reactions_of(data)
+                return _reactions_of(data), nil
 
             if time.monotonic() - started_at >= timeout_seconds:
-                raise TimeoutError(f"Timed out waiting for task {task_id}")
+                return nil, f"Timed out waiting for task {task_id}"
             time.sleep(interval_seconds)
 
     def close(self) -> str:

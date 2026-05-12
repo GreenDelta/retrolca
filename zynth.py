@@ -10,7 +10,11 @@ import retrolca.zynth as z
 def test_zynth():
     config = z.ZynthConfig.from_file("auth/local-zynth.json")
     client = z.ZynthClient(config)
-    reactions = client.expand("CCCCN1CCCC1=O")
+    reactions, err = client.expand("CCCCN1CCCC1=O")
+    if err:
+        print(err)
+        return
+    assert reactions is not None
 
     for r in reactions:
         print(r)
