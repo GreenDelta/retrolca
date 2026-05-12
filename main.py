@@ -29,31 +29,27 @@ def main():
     )
 
     # auth_file = "auth/local.json"
-    auth_file = "auth/remote.json"
-    auth = r.AskcosConfig.read(auth_file)
+    auth_file = Path("auth/remote.json")
+    auth = r.AskcosConfig.from_file(auth_file)
 
-    client = r.AskcosClient(auth)
-    client.login()
+    with r.AskcosClient(auth) as client:
+        for name, input in inputs:
+            file_name = f"{name}_{input}"
+            csv_path = Path(f"out/{file_name}.csv")
+            if csv_path.exists():
+                continue
 
-    for name, input in inputs:
-        file_name = f"{name}_{input}"
-        csv_path = Path(f"out/{file_name}.csv")
-        if csv_path.exists():
-            continue
+            reactions = client.expand(input)
 
-        reactions = client.expand(input)
+            csv = name + " :: " + input + ":\n"
+            for reaction in reactions:
+                csv += str(reaction.score)
+                for smiles in reaction.smiles:
+                    csv += "," + smiles
+                csv += "\n"
 
-        csv = name + " :: " + input + ":\n"
-        for reaction in reactions:
-            csv += str(reaction.score)
-            for smiles in reaction.smiles:
-                csv += "," + smiles
-            csv += "\n"
-
-        with open(csv_path, "w", encoding="utf-8") as f:
-            f.write(csv)
-
-    client.logout()
+            with open(csv_path, "w", encoding="utf-8") as f:
+                f.write(csv)
 
 
 if __name__ == "__main__":

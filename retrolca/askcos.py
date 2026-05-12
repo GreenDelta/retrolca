@@ -117,6 +117,12 @@ class AskcosClient(RetroClient):
         self.session.headers["Authorization"] = f"Bearer {access_token}"
         log.info("API token acquired successfully")
 
+    def __enter__(self) -> "AskcosClient":
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
+
     def _p(self, segment: str) -> str:
         return self.endpoint + segment
 
@@ -170,10 +176,11 @@ class AskcosClient(RetroClient):
                 raise TimeoutError(f"Timed out waiting for task {task_id}")
             time.sleep(interval_seconds)
 
-    def logout(self) -> str:
+    def close(self) -> str:
         log.info("Logging out via %s", self._p("/admin/logout"))
         resp = self.session.post(self._p("/admin/logout"))
         resp.raise_for_status()
         self.session.headers.pop("Authorization", None)
         log.info("Logout completed")
+        self.session.close()
         return resp.text

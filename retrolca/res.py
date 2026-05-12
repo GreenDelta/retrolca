@@ -5,9 +5,11 @@ exceptions. Functions return either a value and ``nil`` for the error, or
 ``nil`` for the value and an error message.
 """
 
-from typing import TypeVar, Optional
+from typing import Optional, TypeVar, Union
 
-type Res[T] = tuple[T, None] | tuple[None, str]
+T = TypeVar("T")
+
+Res = Union[tuple[T, None], tuple[None, str]]
 """A result pair of ``(value, nil)`` or ``(nil, error_message)``."""
 
 nil = None
@@ -17,9 +19,6 @@ nil = None
 def chain_err(msg: str, err: str) -> tuple[None, str]:
     """Prefix an error with context."""
     return nil, f"{msg}\n  -> {err}"
-
-
-T = TypeVar("T")
 
 
 def unwrap(value: Optional[T], error_message="Required value is missing") -> T:
