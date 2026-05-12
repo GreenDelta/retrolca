@@ -1,5 +1,8 @@
+import json
 import logging
 import time
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal, override
 
 import requests
@@ -17,6 +20,19 @@ RetroModel = Literal[
     "reaxys_biocatalysis",
     "uspto_higher_level",
 ]
+
+
+@dataclass
+class AskcosConfig:
+    endpoint: str
+    user: str
+    password: str
+
+    @classmethod
+    def from_file(cls, path: Path) -> "AskcosConfig":
+        with open(path, "r", encoding="utf-8") as f:
+            config: dict[str, Any] = json.load(f)
+            return AskcosConfig(**config)
 
 
 def _request_of(
@@ -81,21 +97,17 @@ def _reaction_of(result: dict[str, Any]) -> Reaction | None:
 
 
 class AskcosClient(RetroClient):
-    def __init__(self, endpoint: str, model: RetroModel = "pistachio"):
+    def __init__(self, config: AskcosConfig, model: RetroModel = "pistachio"):
         self.session = requests.Session()
-        self.endpoint = endpoint.strip().rstrip("/")
+        self.endpoint = config.endpoint.strip().rstrip("/")
         self.model = model
 
-    def _p(self, segment: str) -> str:
-        return self.endpoint + segment
-
-    def login(self, user: str, password: str) -> str:
         log.info("Requesting API token")
         resp = self.session.post(
             self._p("/admin/token"),
             data={
-                "username": user,
-                "password": password,
+                "username": config.user,
+                "password": config.password,
             },
         )
         resp.raise_for_status()
@@ -104,7 +116,17 @@ class AskcosClient(RetroClient):
         access_token = payload["access_token"]
         self.session.headers["Authorization"] = f"Bearer {access_token}"
         log.info("API token acquired successfully")
-        return access_token
+
+    def _p(self, segment: str) -> str:
+        return self.endpoint + segment
+
+    @override
+    def expand(self, smiles: str) -> list[Reaction]:
+        try:
+            task_id = self._call(smiles)
+            return self._poll(task_id)
+        except Exception:
+            return []
 
     def _call(self, smiles_code) -> str:
         log.info("Submitting retrosynthesis task for: %s", smiles_code)
@@ -122,14 +144,6 @@ class AskcosClient(RetroClient):
 
         log.info("Retrosynthesis task submitted: %s", task_id)
         return task_id
-
-    @override
-    def expand(self, smiles: str) -> list[Reaction]:
-        try:
-            task_id = self._call(smiles)
-            return self._poll(task_id)
-        except Exception:
-            return []
 
     def _poll(
         self,

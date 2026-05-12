@@ -1,23 +1,7 @@
-import json
 import logging as log
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-from retrolca import AskcosClient
-
-
-@dataclass
-class Config:
-    endpoint: str
-    user: str
-    password: str
-
-    @classmethod
-    def read(cls, path: Path) -> "Config":
-        with open(path, "r", encoding="utf-8") as f:
-            config: dict[str, Any] = json.load(f)
-            return Config(**config)
+from retrolca import AskcosClient, AskcosConfig
 
 
 def main():
@@ -25,11 +9,10 @@ def main():
         level=log.INFO, format="%(levelname)s %(name)s: %(message)s"
     )
 
-    config = Config.read(
+    config = AskcosConfig.from_file(
         Path(__file__).parent.parent / "auth/remote-askcos.json"
     )
-    client = AskcosClient(config.endpoint, model="pistachio")
-    client.login(config.user, config.password)
+    client = AskcosClient(config, model="pistachio")
 
     reactions = client.expand("CCOP(=O)(OCC)OCC")
     for r in reactions:
