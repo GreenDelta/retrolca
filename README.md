@@ -2,6 +2,12 @@
 
 `retrolca` is a project for transforming retrosynthesis pathways into openLCA process datasets.
 
+## Usage
+
+### Requirements
+
+
+
 ## Building blocks
 
 ### Retrosynthesis API
