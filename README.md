@@ -29,17 +29,78 @@ pub.dump_decorations(ctx, path)
 pub.load_decorations(ctx, path)
 ```
 
-
-## Building blocks
+A full example can be found [here](./examples/pubchem_decorate_flows.py)
 
 ### Retrosynthesis API
 
+`retrolca` can build processes from different retrosynthesis APIs. At the
+moment, the package supports ASKCOS and AiZynthFinder.
+
 #### AiZynthFinder
 
+For AiZynthFinder, install the project dependencies and download the public
+model files into a local `models` folder.
+
 ```bash
-# make sure a virtual environment exists with the AiZynthFinder tools
+# easy with uv; this will create a virtual environment with the dependencies
+# AiZynthFinder comes with a script for downloading public models
 uv sync
-# download the public default modles to the ./models folder
 mkdir models
 ./.venv/bin/download_public_data models
+
+# or on Windows
+.\.venv\Scripts\download_public_data.exe models
+```
+
+The example in [examples/zynthfinder_example.py](examples/zynthfinder_example.py)
+loads the generated `models/config.yml`, wraps it in `ZynthTool`, and passes
+that tool to `ProcessBuilder`.
+
+```python
+import olca_ipc as ipc
+import retrolca as retro
+
+tool = retro.ZynthTool(Path("models/config.yml"))
+ctx, _ = retro.IpcContext.of(ipc.Client())
+builder = retro.ProcessBuilder(
+	ctx,
+	tool,
+	category="Retrosynthesis/Inbox",
+	max_levels=5,
+	max_variants=2,
+)
+builder.build("CCCCN1CCCC1=O", "1-butylpyrrolidin-2-one")
+```
+
+#### ASKCOS
+
+For ASKCOS, create a JSON config file with the API endpoint and login data.
+
+```json
+{
+  "endpoint": "https://your-askcos-instance",
+  "user": "your-user",
+  "password": "your-password"
+}
+```
+
+The example in [examples/askcos_example.py](examples/askcos_example.py) loads
+that config, creates an `AskcosClient`, and uses it with `ProcessBuilder`.
+
+```python
+
+import olca_ipc as ipc
+import retrolca as retro
+
+config = retro.AskcosConfig.from_file(Path("auth/remote-askcos.json"))
+ctx, _ = retro.IpcContext.of(ipc.Client())
+with retro.AskcosClient(config) as client:
+	builder = retro.ProcessBuilder(
+		ctx,
+		client,
+		max_variants=2,
+		max_levels=2,
+		category="Retrosynthesis/Inbox",
+	)
+	builder.build("CCOP(=O)(OCC)OCC", name="triethyl phosphate")
 ```

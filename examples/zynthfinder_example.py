@@ -8,7 +8,7 @@ import retrolca as zn
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    config = Path(__file__).parent / "models/config.yml"
+    config = Path(__file__).parent.parent / "models/config.yml"
     tool = zn.ZynthTool(config)
     ctx, _ = zn.IpcContext.of(ipc.Client())
     assert ctx
