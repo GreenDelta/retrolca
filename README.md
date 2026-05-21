@@ -2,7 +2,36 @@
 
 `retrolca` is a project for transforming retrosynthesis pathways into openLCA process datasets.
 
-## Usage
+The typical workflow has three steps:
+
+1. Connect to the openLCA IPC server.
+2. Configure access to a retrosynthesis API such as ASKCOS or AiZynthFinder.
+3. Configure `ProcessBuilder` and start the process generation.
+
+`ProcessBuilder` is the central component of the workflow. You provide an
+`IpcContext`, a retrosynthesis client, and the limits for the search space,
+especially the maximum number of variants (`max_variants`) and the maximum
+depth of the generated process chain (`max_levels`).
+
+For every retrosynthesis step, the builder sorts the returned reactions by
+their confidence and always builds the variants with the highest score. The
+confidence is calculated from retrosynthesis score and feasibility and is also
+stored in the generated process name. For each reactant, the builder first
+tries to link an existing provider from the background database. If no suitable
+provider can be linked, it descends recursively until the configured maximum
+depth is reached and creates the missing intermediate processes on the way.
+
+The figure below shows such a generated chain. In this example, four
+intermediate processes are created and then linked to ecoinvent background
+data.
+
+![Generated process chain](img/process_chain.png)
+
+For each generated process, `retrolca` also creates a reaction image that shows
+the reactants together with the product so that the synthesis route can be
+reviewed later in openLCA.
+
+![Reaction image](img/reactants.png)
 
 ### Requirements
 
