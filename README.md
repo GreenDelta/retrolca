@@ -1,11 +1,11 @@
 # retrolca
 
-`retrolca` is a project for transforming retrosynthesis pathways into openLCA process datasets.
+`retrolca` is a toolkit for transforming retrosynthesis pathways into openLCA process datasets.
 
 The typical workflow has three steps:
 
 1. Connect to the openLCA IPC server.
-2. Configure access to a retrosynthesis API such as ASKCOS or AiZynthFinder.
+2. Configure access to a retrosynthesis API such as [ASKCOS](https://askcos.mit.edu/) or [AiZynthFinder](https://github.com/MolecularAI/aizynthfinder).
 3. Configure `ProcessBuilder` and start the process generation.
 
 `ProcessBuilder` is the central component of the workflow. You provide an
@@ -101,6 +101,10 @@ builder = retro.ProcessBuilder(
 builder.build("CCCCN1CCCC1=O", "1-butylpyrrolidin-2-one")
 ```
 
+This example should then generate the following processes:
+
+![Process tree](img/process_tree.png)
+
 #### ASKCOS
 
 For ASKCOS, create a JSON config file with the API endpoint and login data.
@@ -133,3 +137,19 @@ with retro.AskcosClient(config) as client:
 	)
 	builder.build("CCOP(=O)(OCC)OCC", name="triethyl phosphate")
 ```
+
+## Components
+
+The project uses the following external components:
+
+- [AiZynthFinder](https://github.com/MolecularAI/aizynthfinder): the
+  retrosynthesis engine behind the local `aizynthfinder` integration.
+- [CIRpy](https://cirpy.readthedocs.io/en/latest/): used to resolve chemical
+  names from SMILES codes, because retrosynthesis tools often return only
+  structures and no compound names.
+- [olca-ipc.py](https://github.com/GreenDelta/olca-ipc.py): the Python client
+  used for communication with the openLCA IPC server.
+- [RDKit](https://www.rdkit.org/): used for molar-mass calculations,
+  generating reaction images, normalizing SMILES strings, and related cheminformatics tasks.
+- [Requests](https://requests.readthedocs.io/en/latest/): used for HTTP
+  communication with the ASKCOS API and other web services such as PubChem.
