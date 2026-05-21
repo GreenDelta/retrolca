@@ -52,16 +52,16 @@ def of_flow(flow: o.Flow) -> str | None:
 def canonicalize(smiles: str) -> str:
     if not smiles or smiles == "":
         return ""
-    mol = Chem.MolFromSmiles(smiles)
+    mol = Chem.MolFromSmiles(smiles)  # ty: ignore
     if not mol:
         return smiles
-    return Chem.MolToSmiles(mol, isomericSmiles=True, canonical=True)
+    return Chem.MolToSmiles(mol, isomericSmiles=True, canonical=True)  # ty: ignore
 
 
 def mol_weight(smiles: str) -> float | None:
     if not smiles or smiles == "":
         return None
-    mol = Chem.MolFromSmiles(smiles)
+    mol = Chem.MolFromSmiles(smiles)  # ty: ignore
     if not mol:
         return None
-    return Descriptors.MolWt(mol)  # ty: ignore
+    return Descriptors.MolWt(mol)
