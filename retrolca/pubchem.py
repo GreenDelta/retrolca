@@ -1,7 +1,9 @@
 import datetime
+import json
 import logging
 import time
 from dataclasses import dataclass
+from os import PathLike
 from typing import Any
 from urllib.parse import quote
 
@@ -10,8 +12,16 @@ import requests
 
 from . import oipc, smiles
 
-
 log = logging.getLogger(__name__)
+
+_PUBCHEM_PROPERTY_KEYS = (
+    "Connectivity-SMILES",
+    "Absolute-SMILES",
+    "InChI-String",
+    "InChI-Key",
+    "MolarMass",
+    "PubChem-Check",
+)
 
 
 @dataclass()
@@ -113,6 +123,144 @@ def get_component(name: str) -> PugComponent | None:
         return None
 
 
+def dump_decorations(ctx: oipc.IpcContext, path: str | PathLike):
+    rows = []
+    for flow in ctx.client.get_all(o.Flow):
+        if not flow or not flow.id:
+            continue
+        props = _pubchem_properties_of(flow)
+        if not props:
+            continue
+        rows.append(
+            {
+                "id": flow.id,
+                "flow": flow.name,
+                "category": flow.category,
+                "synonyms": flow.synonyms,
+                "properties": props,
+            }
+        )
+
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(rows, f, indent=2, ensure_ascii=False)
+    log.info("Dumped %d PubChem decorations to %s", len(rows), path)
+
+
+def load_decorations(ctx: oipc.IpcContext, path: str | PathLike):
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        raise ValueError("expected a list of PubChem decorations")
+
+    updates = 0
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+        flow_id = entry.get("id")
+        if not isinstance(flow_id, str) or flow_id.strip() == "":
+            continue
+
+        flow = ctx.client.get(o.Flow, flow_id)
+        if not flow:
+            log.warning("Flow with id %s not found; skip PubChem data", flow_id)
+            continue
+
+        synonyms = entry.get("synonyms")
+        props = entry.get("properties")
+        changed = False
+        if isinstance(synonyms, str):
+            changed = _merge_synonyms(flow, synonyms.split(";")) or changed
+        if isinstance(props, dict):
+            changed = (
+                _update_pubchem_properties(flow, props, overwrite=True)
+                or changed
+            )
+        if not changed:
+            continue
+
+        timestamp = datetime.datetime.now().isoformat()
+        flow.last_change = timestamp
+        flow.version = _increment_version(flow.version)
+        ctx.client.put(flow)
+        updates += 1
+
+    log.info("Loaded PubChem decorations for %d flows from %s", updates, path)
+
+
+def _pubchem_properties_of(flow: o.Flow) -> dict[str, Any]:
+    if not flow or not flow.other_properties:
+        return {}
+    props: dict[str, Any] = {}
+    for key in _PUBCHEM_PROPERTY_KEYS:
+        if (
+            key in flow.other_properties
+            and flow.other_properties[key] is not None
+        ):
+            props[key] = flow.other_properties[key]
+    return props
+
+
+def _merge_synonyms(flow: o.Flow, values: list[str]) -> bool:
+    changed = False
+    synonyms = set()
+    if flow.name:
+        synonyms.add(flow.name.strip().lower())
+    if flow.synonyms:
+        for value in flow.synonyms.split(";"):
+            synonyms.add(value.strip().lower())
+    for value in values:
+        synonym = value.strip()
+        if synonym == "":
+            continue
+        key = synonym.lower()
+        if key in synonyms:
+            continue
+        if not flow.synonyms or flow.synonyms == "":
+            flow.synonyms = synonym
+        else:
+            flow.synonyms += "; " + synonym
+        synonyms.add(key)
+        changed = True
+    return changed
+
+
+def _update_pubchem_properties(
+    flow: o.Flow, props: dict[str, Any], overwrite: bool
+) -> bool:
+    if not props:
+        return False
+    if not flow.other_properties:
+        flow.other_properties = {}
+
+    changed = False
+    for key in _PUBCHEM_PROPERTY_KEYS:
+        if key not in props or props[key] is None:
+            continue
+        if not overwrite and flow.other_properties.get(key):
+            continue
+        if flow.other_properties.get(key) == props[key]:
+            continue
+        flow.other_properties[key] = props[key]
+        changed = True
+    return changed
+
+
+def _increment_version(v: str | None) -> str:
+    if not v:
+        return "0.0.1"
+    parts = []
+    for si in v.split("."):
+        vi = si.strip()
+        if vi == "":
+            parts.append(0)
+        else:
+            parts.append(int(vi))
+    if len(parts) == 0:
+        return "0.0.1"
+    parts[-1] = parts[-1] + 1
+    return ".".join([str(i) for i in parts])
+
+
 class IpcFlowDecorator:
     def __init__(self, ctx: oipc.IpcContext):
         self.ctx = ctx
@@ -150,7 +298,7 @@ class IpcFlowDecorator:
             timestamp = datetime.datetime.now().isoformat()
             flow.other_properties["PubChem-Check"] = timestamp
             flow.last_change = timestamp
-            flow.version = self._increment_version(flow.version)
+            flow.version = _increment_version(flow.version)
             self.ctx.client.put(flow)
 
             time.sleep(request_interval)
@@ -166,34 +314,20 @@ class IpcFlowDecorator:
             return False
 
         # add synonyms
-        syns = set()
-        syns.add(flow.name.strip().lower())
-        if flow.synonyms:
-            for s in flow.synonyms.split(";"):
-                syns.add(s.strip().lower())
-        for s in pug.synonyms():
-            key = s.strip().lower()
-            if key not in syns:
-                if not flow.synonyms or flow.synonyms == "":
-                    flow.synonyms = s
-                else:
-                    flow.synonyms += "; " + s
+        _merge_synonyms(flow, list(pug.synonyms()))
 
         # add additional properties
-        if not flow.other_properties:
-            flow.other_properties = {}
         props = [
             ("Connectivity-SMILES", pug.connectivity_smiles()),
             ("Absolute-SMILES", pug.absolute_smiles()),
             ("InChI-String", pug.inchi_string()),
             ("InChI-Key", pug.inchi_key()),
         ]
-        for key, val in props:
-            if not val:
-                continue
-            if flow.other_properties.get(key):
-                continue
-            flow.other_properties[key] = val
+        _update_pubchem_properties(
+            flow,
+            {key: val for key, val in props if val},
+            overwrite=False,
+        )
 
         # add the chemical amount if possible
         mm = self.ctx.molar_mass_of(flow)
@@ -208,7 +342,7 @@ class IpcFlowDecorator:
                         conversion_factor=1000 / mm,
                     )
                 )
-            flow.other_properties["MolarMass"] = mm
+            _update_pubchem_properties(flow, {"MolarMass": mm}, overwrite=False)
         return True
 
     def should_try(
@@ -243,18 +377,3 @@ class IpcFlowDecorator:
             return False
 
         return True
-
-    def _increment_version(self, v: str | None) -> str:
-        if not v:
-            return "0.0.1"
-        parts = []
-        for si in v.split("."):
-            vi = si.strip()
-            if vi == "":
-                parts.append(0)
-            else:
-                parts.append(int(vi))
-        if len(parts) == 0:
-            return "0.0.1"
-        parts[-1] = parts[-1] + 1
-        return ".".join([str(i) for i in parts])
