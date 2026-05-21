@@ -1,4 +1,5 @@
 import datetime
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -8,6 +9,9 @@ import olca_schema as o
 import requests
 
 from . import oipc, smiles
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclass()
@@ -125,20 +129,20 @@ class IpcFlowDecorator:
                 flows.append(flow)
         n = len(flows)
         if n == 0:
-            print("No untagged chemical products found")
+            log.info("No untagged chemical products found")
             return
-        print(f"Found {n} chemical products to test")
+        log.info("Found %s chemical products to test", n)
 
         i = 0
         for flow in flows:
             i += 1
             # try to add attributes from PubChem
-            print(f"{flow.name} ({flow.id}) ... [{i}/{n}]")
+            log.info("%s (%s) ... [%s/%s]", flow.name, flow.id, i, n)
             b = self.try_with(flow)
             if b:
-                print("  ... updated")
+                log.info("  ... updated")
             else:
-                print("  ... not found on PubChem")
+                log.info("  ... not found on PubChem")
 
             # mark the flow as checked and update it
             if not flow.other_properties:
