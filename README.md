@@ -11,7 +11,8 @@ The typical workflow has three steps:
 `ProcessBuilder` is the central component of the workflow. You provide an
 `IpcContext`, a retrosynthesis client, and the limits for the search space,
 especially the maximum number of variants (`max_variants`) and the maximum
-depth of the generated process chain (`max_levels`).
+depth of the generated process chain (`max_levels`). Optionally, you can also
+provide a generic production process via `gen_process`.
 
 For every retrosynthesis step, the builder sorts the returned reactions by
 their confidence and always builds the variants with the highest score. The
@@ -20,6 +21,12 @@ stored in the generated process name. For each reactant, the builder first
 tries to link an existing provider from the background database. If no suitable
 provider can be linked, it descends recursively until the configured maximum
 depth is reached and creates the missing intermediate processes on the way.
+
+If `gen_process` is set, each generated process also gets an input from this
+generic production process. The referenced process must have a single product
+output measured in mass. Since each generated process has a product output of
+1 mol, `ProcessBuilder` uses the molar mass of that product to calculate the
+corresponding mass input from the generic production process.
 
 The figure below shows such a generated chain. In this example, four
 intermediate processes are created and then linked to ecoinvent background
@@ -107,6 +114,7 @@ builder = retro.ProcessBuilder(
 	category="Retrosynthesis/Inbox",
 	max_levels=5,
 	max_variants=2,
+	gen_process="83083965-4104-4c87-88af-bc200b6a520c",
 )
 builder.build("CCCCN1CCCC1=O", "1-butylpyrrolidin-2-one")
 ```
@@ -144,6 +152,7 @@ with retro.AskcosClient(config) as client:
 		max_variants=2,
 		max_levels=2,
 		category="Retrosynthesis/Inbox",
+		gen_process="83083965-4104-4c87-88af-bc200b6a520c",
 	)
 	builder.build("CCOP(=O)(OCC)OCC", name="triethyl phosphate")
 ```
