@@ -1,6 +1,6 @@
 import logging as log
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import cast
 
 import olca_ipc as ipc
 import olca_schema as o
@@ -220,56 +220,3 @@ class ProviderIndex:
         provider = o.TechFlow(flow=flow_ref, provider=process.to_ref())
         self.data[smiles_code] = provider
         return provider
-
-
-def create_product(
-    ctx: IpcContext,
-    smiles_code: str,
-    name: str | None = None,
-    category: str | None = None,
-) -> Res[o.Flow]:
-    # a name of the product is required
-    # either it is given or we get it from CIRpy
-    info = smiles.get_cirpy_info(smiles_code)
-    product: str
-    if name:
-        product = name
-    elif info:
-        product = info.name
-    else:
-        product = smiles_code
-
-    flow = o.new_product(product, ctx.mass)
-    if not flow or not flow.flow_properties:
-        return nil, "Could not create product flow"
-    flow.category = category
-    flow.description = (
-        "This product flow was automatically generated from it's SMILES code. "
-        "See also see the additional properties of the flow for more "
-        "information."
-    )
-
-    # add the chemical amount as flow property
-    mw = smiles.mol_weight(smiles_code)
-    if not mw:
-        return nil, f"Could not calculate the molar mass of: {smiles_code}"
-    flow.flow_properties.append(
-        o.FlowPropertyFactor(
-            conversion_factor=1000 / mw, flow_property=ctx.chem_amount.to_ref()
-        )
-    )
-
-    # additional properties
-    props: dict[str, Any] = {}
-    flow.other_properties = props
-    props["SMILES"] = smiles_code
-    props["MolarMass"] = mw
-    if info:
-        flow.formula = info.formula
-        if info.inchi:
-            props["InChI-String"] = info.inchi
-        if info.inchi_key:
-            props["InChI-Key"] = info.inchi_key
-
-    ctx.client.put(flow)
-    return flow, nil

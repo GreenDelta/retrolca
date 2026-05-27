@@ -1,6 +1,7 @@
 import base64
 import io
 import logging
+from typing import Any
 
 import olca_ipc as ipc
 import olca_schema as o
@@ -8,7 +9,8 @@ from rdkit import Chem
 from rdkit.Chem import Draw
 
 from . import oipc, proto, smiles
-from .res import unwrap
+from .naming import CIR, NamingService
+from .res import Res, nil, unwrap
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +34,7 @@ class ProcessBuilder:
         max_levels=5,
         category: str | None = None,
         gen_process: str | None = None,
+        naming: NamingService = CIR(),
     ):
         """Constructs a new process builder.
 
@@ -72,6 +75,7 @@ class ProcessBuilder:
         self.gen_provider = (
             _find_gen_provider(ctx.client, gen_process) if gen_process else None
         )
+        self.naming = naming
 
     def build(
         self,
@@ -181,9 +185,7 @@ class ProcessBuilder:
         if flow:
             return flow
         log.info("Create flow for SMILES: %s", smiles_code)
-        flow, err = oipc.create_product(
-            self.ctx, smiles_code, name, self.category
-        )
+        flow, err = self.create_product(smiles_code, name)
         if err:
             log.error("Failed to create flow for SMILES: %s", smiles_code)
             return None
@@ -236,7 +238,7 @@ class ProcessBuilder:
                 log.warning("Could not render molecule for SMILES: %s", code)
                 continue
             mols.append(mol)
-            labels.append(self.__molecule_label(code))
+            labels.append(self.naming.get_name(code))
 
         if len(mols) == 0:
             return None
@@ -250,12 +252,6 @@ class ProcessBuilder:
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode("ascii")
-
-    def __molecule_label(self, smiles_code: str) -> str:
-        info = smiles.get_cirpy_info(smiles_code)
-        if info and info.name:
-            return info.name
-        return smiles_code
 
     def __add_gen_input(self, process: o.Process, ref_flow: o.Flow):
         if not self.gen_provider or not self.gen_provider.flow:
@@ -275,3 +271,54 @@ class ProcessBuilder:
         )
         inp.flow_property = self.ctx.mass.to_ref()
         inp.default_provider = self.gen_provider.provider
+
+    def create_product(
+        self,
+        smiles_code: str,
+        name: str | None = None,
+    ) -> Res[o.Flow]:
+
+        info = self.naming.get_info(smiles_code)
+        product: str
+        if name:
+            product = name
+        elif info:
+            product = info.name
+        else:
+            product = smiles_code
+
+        flow = o.new_product(product, self.ctx.mass)
+        if not flow or not flow.flow_properties:
+            return nil, "Could not create product flow"
+        flow.category = self.category
+        flow.description = (
+            "This product flow was automatically generated from it's SMILES code. "
+            "See also see the additional properties of the flow for more "
+            "information."
+        )
+
+        # add the chemical amount as flow property
+        mw = smiles.mol_weight(smiles_code)
+        if not mw:
+            return nil, f"Could not calculate the molar mass of: {smiles_code}"
+        flow.flow_properties.append(
+            o.FlowPropertyFactor(
+                conversion_factor=1000 / mw,
+                flow_property=self.ctx.chem_amount.to_ref(),
+            )
+        )
+
+        # additional properties
+        props: dict[str, Any] = {}
+        flow.other_properties = props
+        props["SMILES"] = smiles_code
+        props["MolarMass"] = mw
+        if info:
+            flow.formula = info.formula
+            if info.inchi:
+                props["InChI-String"] = info.inchi
+            if info.inchi_key:
+                props["InChI-Key"] = info.inchi_key
+
+        self.ctx.client.put(flow)
+        return flow, nil

@@ -32,6 +32,8 @@ class ZynthTool(RetroClient):
                 # for the same reactants there could be multiple reactions with
                 # different scores
                 r = _reaction_of(candidate)
+                if not r:
+                    continue
                 if reaction and reaction.score > r.score:
                     continue
                 reaction = r
