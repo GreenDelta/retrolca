@@ -124,6 +124,7 @@ def get_component(name: str) -> PugComponent | None:
 
 
 def dump_decorations(ctx: oipc.IpcContext, path: str | PathLike):
+    log.info("Save PubChem information in: %s", path)
     rows = []
     for flow in ctx.client.get_all(o.Flow):
         if not flow or not flow.id:
@@ -147,6 +148,7 @@ def dump_decorations(ctx: oipc.IpcContext, path: str | PathLike):
 
 
 def load_decorations(ctx: oipc.IpcContext, path: str | PathLike):
+    log.info("Load PubChem decorations from %s", path)
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, list):

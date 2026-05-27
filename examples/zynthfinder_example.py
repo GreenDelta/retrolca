@@ -17,7 +17,8 @@ def main():
         tool,
         category="Retrosynthesis/Inbox",
         max_levels=5,
-        max_variants=2,
+        max_variants=3,
+        gen_process="83083965-4104-4c87-88af-bc200b6a520c",
     )
     builder.build("CCCCN1CCCC1=O", "1-butylpyrrolidin-2-one")
 

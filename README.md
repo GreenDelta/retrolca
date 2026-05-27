@@ -36,7 +36,17 @@ reviewed later in openLCA.
 ### Requirements
 
 To build processes from a retrosynthesis API, you first need an openLCA
-database with chemical product flows that are decorated with SMILES codes.
+database with background processes that provide chemical product flows with
+SMILES codes. For linking background providers, it is only important that
+these product flows exist in the background database and that their SMILES
+codes can be resolved by `retrolca`.
+
+At the moment, `retrolca` reads SMILES codes from the `additional properties`
+of a flow and checks the keys `SMILES`, `Absolute-SMILES`, and
+`Connectivity-SMILES`. PubChem is only one possible source for assigning this
+information to flows; the SMILES codes can also be added by any other method,
+as long as they are stored on the flows in a compatible way.
+
 The package contains tooling that can enrich a database with data from
 PubChem.
 

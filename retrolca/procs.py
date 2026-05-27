@@ -19,6 +19,7 @@ def _find_gen_provider(
     for p in client.get_providers():
         if p.provider and p.provider.id == gen_process:
             return p
+    log.warning("Could not find generic production process: %s", gen_process)
     return None
 
 
@@ -40,25 +41,25 @@ class ProcessBuilder:
             retro:
                 The retrosynthesis tool.
             max_variants:
-                The maximum number of variants of a process that can be created
-                at each level. (default 3)
+                The maximum number of process variants that can be created at
+                each level. Default is 3.
             max_levels:
-                The maximum number of levels, so depth of the supply chain, that
-                can be generated. At each level the builder will try to link
-                providers, this is the maximum level, if no providers can be
-                linked before. (default 5)
+                The maximum number of levels, or supply-chain depth, to
+                generate. At each level, the builder tries to link providers.
+                If no provider can be linked earlier, generation continues up
+                to this depth. Default is 5.
             category:
                 An optional root category path under which generated processes
-                and flows are stored in openLCA. Additionally, sub-categories
-                are created for the respective levels under that path.
+                and flows are stored in openLCA. Subcategories for the
+                respective levels are created under that path.
             gen_process:
                 An optional ID of a generic chemical production process that
                 should be linked to the generated processes. This process needs
-                to have a single product output given in mass. It is then linked
-                as an input in the generated processes. Each generated process
-                has an output of 1 mol of the respective product. With the molar
-                mass of that product we calculate the corresponding mass of the
-                input from the generic production process.
+                to have a single product output measured in mass. It is linked
+                as an input to the generated processes. Each generated process
+                has an output of 1 mol of the respective product. The molar mass
+                of that product is then used to calculate the corresponding
+                input mass from the generic production process.
         """
         self.ctx = ctx
         log.info("Build provider and flow index")
@@ -68,6 +69,9 @@ class ProcessBuilder:
         self.max_variants = max_variants
         self.max_levels = max_levels
         self.category = category
+        self.gen_provider = (
+            _find_gen_provider(ctx.client, gen_process) if gen_process else None
+        )
 
     def build(
         self,
@@ -153,6 +157,8 @@ class ProcessBuilder:
             "Retrosynthesis-Feasibility": reaction.feasibility,
         }
         self.__add_reaction_source(process, product_smiles, reaction)
+        if self.gen_provider:
+            self.__add_gen_input(process, ref_flow)
         return process
 
     def __resolve_provider(
@@ -225,7 +231,7 @@ class ProcessBuilder:
         mols = []
         labels = []
         for code in codes:
-            mol = Chem.MolFromSmiles(code)
+            mol = Chem.MolFromSmiles(code)  # ty: ignore
             if not mol:
                 log.warning("Could not render molecule for SMILES: %s", code)
                 continue
@@ -250,3 +256,22 @@ class ProcessBuilder:
         if info and info.name:
             return info.name
         return smiles_code
+
+    def __add_gen_input(self, process: o.Process, ref_flow: o.Flow):
+        if not self.gen_provider or not self.gen_provider.flow:
+            return
+
+        molar_mass = self.ctx.molar_mass_of(ref_flow)
+        if not molar_mass:
+            raise ValueError(
+                f"Could not determine molar mass of flow '{ref_flow.name}'"
+            )
+
+        inp = o.new_input(
+            process,
+            unwrap(self.gen_provider.flow),
+            molar_mass / 1000,
+            self.ctx.kg,
+        )
+        inp.flow_property = self.ctx.mass.to_ref()
+        inp.default_provider = self.gen_provider.provider
