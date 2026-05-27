@@ -23,9 +23,12 @@ def main():
             tool,
             max_variants=2,
             max_levels=2,
+        )
+        builder.build(
+            "CCOP(=O)(OCC)OCC",
+            name="triethyl phosphate",
             category="Retrosynthesis/Inbox",
         )
-        builder.build("CCOP(=O)(OCC)OCC", name="triethyl phosphate")
 
 
 if __name__ == "__main__":

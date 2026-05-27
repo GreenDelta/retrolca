@@ -9,7 +9,7 @@ The typical workflow has three steps:
 3. Configure `ProcessBuilder` and start the process generation.
 
 `ProcessBuilder` is the central component of the workflow. You provide an
-`IpcContext`, a retrosynthesis client, and the limits for the search space,
+`IpcContext`, a retrosynthesis tool, and the limits for the search space,
 especially the maximum number of variants (`max_variants`) and the maximum
 depth of the generated process chain (`max_levels`). Optionally, you can also
 provide a generic production process via `gen_process`.
@@ -77,9 +77,9 @@ pub.load_decorations(ctx, path)
 
 A full example can be found [here](./examples/pubchem_decorate_flows.py)
 
-### Retrosynthesis API
+### Retrosynthesis Tool
 
-`retrolca` can build processes from different retrosynthesis APIs. At the
+`retrolca` can build processes from different retrosynthesis tools. At the
 moment, the package supports ASKCOS and AiZynthFinder.
 
 The integration point is intentionally simple: `ProcessBuilder` accepts any
@@ -119,19 +119,22 @@ that tool to `ProcessBuilder`.
 
 ```python
 import olca_ipc as ipc
-import retrolca as retro
+import retrolca as r
 
-tool = retro.ZynthTool(Path("models/config.yml"))
-ctx, _ = retro.IpcContext.of(ipc.Client())
-builder = retro.ProcessBuilder(
-	ctx,
-	tool,
-	category="Retrosynthesis/Inbox",
-	max_levels=5,
-	max_variants=2,
-	gen_process="83083965-4104-4c87-88af-bc200b6a520c",
+tool = r.ZynthTool(Path("models/config.yml"))
+ctx, _ = r.IpcContext.of(ipc.Client())
+builder = r.ProcessBuilder(
+  ctx,
+  tool,
+  max_levels=5,
+  max_variants=2,
+  gen_process="83083965-4104-4c87-88af-bc200b6a520c",
 )
-builder.build("CCCCN1CCCC1=O", "1-butylpyrrolidin-2-one")
+builder.build(
+  "CCCCN1CCCC1=O",
+  "1-butylpyrrolidin-2-one",
+  category="Retrosynthesis/Inbox",
+)
 ```
 
 This example should then generate the following processes:
@@ -156,20 +159,23 @@ that config, creates an `AskcosClient`, and uses it with `ProcessBuilder`.
 ```python
 
 import olca_ipc as ipc
-import retrolca as retro
+import retrolca as r
 
-config = retro.AskcosConfig.from_file(Path("auth/remote-askcos.json"))
-ctx, _ = retro.IpcContext.of(ipc.Client())
-with retro.AskcosClient(config) as tool:
-	builder = retro.ProcessBuilder(
-		ctx,
+config = r.AskcosConfig.from_file(Path("auth/remote-askcos.json"))
+ctx, _ = r.IpcContext.of(ipc.Client())
+with r.AskcosClient(config) as tool:
+  builder = r.ProcessBuilder(
+    ctx,
     tool,
-		max_variants=2,
-		max_levels=2,
-		category="Retrosynthesis/Inbox",
-		gen_process="83083965-4104-4c87-88af-bc200b6a520c",
-	)
-	builder.build("CCOP(=O)(OCC)OCC", name="triethyl phosphate")
+    max_variants=2,
+    max_levels=2,
+    gen_process="83083965-4104-4c87-88af-bc200b6a520c",
+  )
+  builder.build(
+    "CCOP(=O)(OCC)OCC",
+    name="triethyl phosphate",
+    category="Retrosynthesis/Inbox",
+  )
 ```
 
 #### Naming service
@@ -196,8 +202,8 @@ builder = r.ProcessBuilder(
     ctx,
     tool,
     naming=naming,
-    category="Retrosynthesis/Inbox",
 )
+builder.build("CCCCN1CCCC1=O", category="Retrosynthesis/Inbox")
 ```
 
 Custom naming services only need to provide an `id` and a `get_info(smiles)`

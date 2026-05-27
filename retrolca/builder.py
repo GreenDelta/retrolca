@@ -32,7 +32,6 @@ class ProcessBuilder:
         tool: tool.RetroTool,
         max_variants=3,
         max_levels=5,
-        category: str | None = None,
         gen_process: str | None = None,
         naming: NamingService = CIR(),
     ):
@@ -51,10 +50,6 @@ class ProcessBuilder:
                 generate. At each level, the builder tries to link providers.
                 If no provider can be linked earlier, generation continues up
                 to this depth. Default is 5.
-            category:
-                An optional root category path under which generated processes
-                and flows are stored in openLCA. Subcategories for the
-                respective levels are created under that path.
             gen_process:
                 An optional ID of a generic chemical production process that
                 should be linked to the generated processes. This process needs
@@ -71,7 +66,6 @@ class ProcessBuilder:
         self.tool = tool
         self.max_variants = max_variants
         self.max_levels = max_levels
-        self.category = category
         self.gen_provider = (
             _find_gen_provider(ctx.client, gen_process) if gen_process else None
         )
@@ -81,12 +75,31 @@ class ProcessBuilder:
         self,
         smiles_code: str,
         name: str | None = None,
+        category: str | None = None,
         level=0,
     ) -> list[o.Process]:
+        """Build process variants for a product SMILES code.
+
+        Args:
+            smiles_code:
+                The product SMILES code for which retrosynthesis processes
+                should be generated.
+            name:
+                An optional display name for the product flow. If omitted, the
+                naming service is used and falls back to the SMILES code.
+            category:
+                An optional root category path under which generated processes,
+                flows, and sources are stored in openLCA. For generated
+                processes, subcategories for the respective levels are created
+                under that path.
+            level:
+                The current recursion level. This is managed internally during
+                recursive expansion and usually stays at the default value.
+        """
         log.info(
             "Create processes for SMILES=%s at level=%d", smiles_code, level
         )
-        ref_flow = self.__resolve_product(smiles_code, name)
+        ref_flow = self.__resolve_product(smiles_code, name, category)
         if not ref_flow:
             return []
         reactions = self.__get_reactions(smiles_code)
@@ -98,11 +111,11 @@ class ProcessBuilder:
         for reaction in reactions:
             variant += 1
             process = self.__init_process(
-                ref_flow, reaction, variant, smiles_code, level
+                ref_flow, reaction, variant, smiles_code, category, level
             )
             for si in reaction.smiles:
                 smiles_i = smiles.canonicalize(si)
-                provider = self.__resolve_provider(smiles_i, level + 1)
+                provider = self.__resolve_provider(smiles_i, category, level + 1)
                 if not provider:
                     continue
                 inp = o.new_input(
@@ -141,6 +154,7 @@ class ProcessBuilder:
         reaction: tool.Reaction,
         variant: int,
         product_smiles: str,
+        category: str | None,
         level: int,
     ) -> o.Process:
         score = reaction.score * reaction.feasibility
@@ -149,7 +163,7 @@ class ProcessBuilder:
             f"| c = {score:.4f}"
         )
         process = o.new_process(name)
-        process.category = self.category
+        process.category = category
         if level > 0 and process.category:
             process.category += f"/level {level}"
 
@@ -160,32 +174,35 @@ class ProcessBuilder:
             "Retrosynthesis-Score": reaction.score,
             "Retrosynthesis-Feasibility": reaction.feasibility,
         }
-        self.__add_reaction_source(process, product_smiles, reaction)
+        self.__add_reaction_source(process, product_smiles, reaction, category)
         if self.gen_provider:
             self.__add_gen_input(process, ref_flow)
         return process
 
     def __resolve_provider(
-        self, smiles_code: str, level: int
+        self, smiles_code: str, category: str | None, level: int
     ) -> o.TechFlow | None:
         if p := self.providers.get(smiles_code):
             return p
         if level > self.max_levels:
-            flow = self.__resolve_product(smiles_code)
+            flow = self.__resolve_product(smiles_code, category=category)
             return o.TechFlow(flow=flow.to_ref()) if flow else None
-        processes = self.build(smiles_code, level=level)
+        processes = self.build(smiles_code, category=category, level=level)
         if len(processes) == 0:
             return None
         return self.providers.put(smiles_code, processes[0])
 
     def __resolve_product(
-        self, smiles_code: str, name: str | None = None
+        self,
+        smiles_code: str,
+        name: str | None = None,
+        category: str | None = None,
     ) -> o.Flow | None:
         flow = self.flows.data.get(smiles_code)
         if flow:
             return flow
         log.info("Create flow for SMILES: %s", smiles_code)
-        flow, err = self.create_product(smiles_code, name)
+        flow, err = self.create_product(smiles_code, name, category)
         if err:
             log.error("Failed to create flow for SMILES: %s", smiles_code)
             return None
@@ -194,13 +211,17 @@ class ProcessBuilder:
         return flow
 
     def __add_reaction_source(
-        self, process: o.Process, smiles_code: str, reaction: tool.Reaction
+        self,
+        process: o.Process,
+        smiles_code: str,
+        reaction: tool.Reaction,
+        category: str | None,
     ):
         image_data = self.__reaction_image(smiles_code, reaction)
         if not image_data:
             return
         source = o.Source(name=f"Reaction scheme for {process.name}")
-        source.category = self.category
+        source.category = category
         source.description = (
             "This source was automatically generated for the retrosynthesis "
             f"reaction assigned to the process '{process.name}'. It includes "
@@ -276,6 +297,7 @@ class ProcessBuilder:
         self,
         smiles_code: str,
         name: str | None = None,
+        category: str | None = None,
     ) -> Res[o.Flow]:
 
         info = self.naming.get_info(smiles_code)
@@ -290,7 +312,7 @@ class ProcessBuilder:
         flow = o.new_product(product, self.ctx.mass)
         if not flow or not flow.flow_properties:
             return nil, "Could not create product flow"
-        flow.category = self.category
+        flow.category = category
         flow.description = (
             "This product flow was automatically generated from it's SMILES code. "
             "See also see the additional properties of the flow for more "
