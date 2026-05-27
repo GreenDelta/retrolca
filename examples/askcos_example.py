@@ -17,10 +17,10 @@ def main():
     ctx, err = retro.IpcContext.of(ipc.Client())
     assert ctx, err
 
-    with retro.AskcosClient(config) as client:
+    with retro.AskcosClient(config) as tool:
         builder = retro.ProcessBuilder(
             ctx,
-            client,
+            tool,
             max_variants=2,
             max_levels=2,
             category="Retrosynthesis/Inbox",

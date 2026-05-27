@@ -29,7 +29,7 @@ class ProcessBuilder:
     def __init__(
         self,
         ctx: oipc.IpcContext,
-        retro: tool.RetroTool,
+        tool: tool.RetroTool,
         max_variants=3,
         max_levels=5,
         category: str | None = None,
@@ -41,7 +41,7 @@ class ProcessBuilder:
         Args:
             ctx:
                 The IPC context for data exchange with openLCA.
-            retro:
+            tool:
                 The retrosynthesis tool.
             max_variants:
                 The maximum number of process variants that can be created at
@@ -68,7 +68,7 @@ class ProcessBuilder:
         log.info("Build provider and flow index")
         self.providers = oipc.ProviderIndex.of(ctx)
         self.flows = oipc.FlowIndex.of(ctx)
-        self.retro = retro
+        self.tool = tool
         self.max_variants = max_variants
         self.max_levels = max_levels
         self.category = category
@@ -118,7 +118,7 @@ class ProcessBuilder:
         return processes
 
     def __get_reactions(self, smiles_code: str) -> list[tool.Reaction]:
-        reactions, err = self.retro.expand(smiles_code)
+        reactions, err = self.tool.expand(smiles_code)
         if err:
             log.info(
                 "No retrosynthesis results retrieved for %s: %s",

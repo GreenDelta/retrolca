@@ -82,6 +82,21 @@ A full example can be found [here](./examples/pubchem_decorate_flows.py)
 `retrolca` can build processes from different retrosynthesis APIs. At the
 moment, the package supports ASKCOS and AiZynthFinder.
 
+The integration point is intentionally simple: `ProcessBuilder` accepts any
+retrosynthesis backend that implements the `RetroTool` protocol. This makes it
+easy to plug in other tools without changing the builder itself.
+
+```python
+class RetroTool(Protocol):
+    id: str
+    def expand(self, smiles: str) -> Res[list[Reaction]]: ...
+```
+
+Any class that provides an `id` and an `expand(smiles)` method with this shape
+can be passed to `ProcessBuilder`. Registering a custom retrosynthesis tool
+just means implementing this protocol and then passing the instance as the
+`tool` argument.
+
 #### AiZynthFinder
 
 For AiZynthFinder, install the project dependencies and download the public
@@ -145,10 +160,10 @@ import retrolca as retro
 
 config = retro.AskcosConfig.from_file(Path("auth/remote-askcos.json"))
 ctx, _ = retro.IpcContext.of(ipc.Client())
-with retro.AskcosClient(config) as client:
+with retro.AskcosClient(config) as tool:
 	builder = retro.ProcessBuilder(
 		ctx,
-		client,
+    tool,
 		max_variants=2,
 		max_levels=2,
 		category="Retrosynthesis/Inbox",
@@ -156,6 +171,38 @@ with retro.AskcosClient(config) as client:
 	)
 	builder.build("CCOP(=O)(OCC)OCC", name="triethyl phosphate")
 ```
+
+#### Naming service
+
+`ProcessBuilder` can also be configured with a naming service that resolves
+names for SMILES codes. This is useful because retrosynthesis tools often
+return structures only, while generated openLCA processes and flows should
+have readable names.
+
+By default, `ProcessBuilder` uses `CIR`, but any implementation of the
+`NamingService` protocol can be passed via the `naming` argument. This makes
+the naming lookup configurable in the same way as the retrosynthesis backend.
+
+```python
+import olca_ipc as ipc
+import retrolca as r
+
+tool = r.CachingRetroTool(
+    "cache.sqlite", r.ZynthTool("models/config.yml"),
+)
+naming = r.CachingNamingService("cache.sqlite", r.CIR())
+ctx, _ = r.IpcContext.of(ipc.Client())
+builder = r.ProcessBuilder(
+    ctx,
+    tool,
+    naming=naming,
+    category="Retrosynthesis/Inbox",
+)
+```
+
+Custom naming services only need to provide an `id` and a `get_info(smiles)`
+method compatible with `NamingService`. If no name can be resolved,
+the `ProcessBuilder` falls back to the SMILES code.
 
 ## Components
 
