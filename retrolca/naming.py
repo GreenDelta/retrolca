@@ -1,4 +1,8 @@
-from dataclasses import dataclass
+import hashlib
+import json
+import sqlite3
+from dataclasses import asdict, dataclass
+from os import PathLike
 from typing import Any, Protocol, override
 
 import cirpy
@@ -50,3 +54,72 @@ def _str(v: Any) -> str | None:
         return v
     else:
         return None
+
+
+class CachingNamingService(NamingService):
+    def __init__(self, path: str | PathLike, service: NamingService):
+        self.service = service
+        self.id = f"{service.id}/cached"
+        self.conn = sqlite3.connect(path)
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tbl_naming_infos (
+                cache_key TEXT PRIMARY KEY,
+                info_json TEXT NOT NULL
+            )
+            """
+        )
+        self.conn.commit()
+
+    @override
+    def get_info(self, smiles: str) -> NamingInfo | None:
+        key = self.__key_of(smiles)
+        info = self.__lookup(key)
+        if info and info.smiles == smiles:
+            return info
+
+        info = self.service.get_info(smiles)
+        if not info:
+            return None
+
+        self.__store(key, info)
+        return info
+
+    def close(self):
+        self.conn.close()
+
+    def __key_of(self, smiles: str) -> str:
+        raw = f"{self.service.id}||{smiles}".encode("utf-8")
+        return hashlib.blake2b(raw, digest_size=32).hexdigest()
+
+    def __lookup(self, key: str) -> NamingInfo | None:
+        row = self.conn.execute(
+            "SELECT info_json FROM tbl_naming_infos WHERE cache_key = ?",
+            (key,),
+        ).fetchone()
+        if not row:
+            return None
+
+        try:
+            data = json.loads(row[0])
+        except (TypeError, json.JSONDecodeError):
+            return None
+
+        if not isinstance(data, dict):
+            return None
+        try:
+            return NamingInfo(**data)
+        except TypeError:
+            return None
+
+    def __store(self, key: str, info: NamingInfo):
+        payload = json.dumps(asdict(info), separators=(",", ":"))
+        self.conn.execute(
+            """
+            INSERT INTO tbl_naming_infos (cache_key, info_json)
+            VALUES (?, ?)
+            ON CONFLICT(cache_key) DO UPDATE SET info_json = excluded.info_json
+            """,
+            (key, payload),
+        )
+        self.conn.commit()
