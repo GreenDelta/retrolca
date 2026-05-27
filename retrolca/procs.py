@@ -13,6 +13,15 @@ from .res import unwrap
 log = logging.getLogger(__name__)
 
 
+def _find_gen_provider(
+    client: ipc.ProtoClient, gen_process: str
+) -> o.TechFlow | None:
+    for p in client.get_providers():
+        if p.provider and p.provider.id == gen_process:
+            return p
+    return None
+
+
 class ProcessBuilder:
     def __init__(
         self,
@@ -21,7 +30,36 @@ class ProcessBuilder:
         max_variants=3,
         max_levels=5,
         category: str | None = None,
+        gen_process: str | None = None,
     ):
+        """Constructs a new process builder.
+
+        Args:
+            ctx:
+                The IPC context for data exchange with openLCA.
+            retro:
+                The retrosynthesis tool.
+            max_variants:
+                The maximum number of variants of a process that can be created
+                at each level. (default 3)
+            max_levels:
+                The maximum number of levels, so depth of the supply chain, that
+                can be generated. At each level the builder will try to link
+                providers, this is the maximum level, if no providers can be
+                linked before. (default 5)
+            category:
+                An optional root category path under which generated processes
+                and flows are stored in openLCA. Additionally, sub-categories
+                are created for the respective levels under that path.
+            gen_process:
+                An optional ID of a generic chemical production process that
+                should be linked to the generated processes. This process needs
+                to have a single product output given in mass. It is then linked
+                as an input in the generated processes. Each generated process
+                has an output of 1 mol of the respective product. With the molar
+                mass of that product we calculate the corresponding mass of the
+                input from the generic production process.
+        """
         self.ctx = ctx
         log.info("Build provider and flow index")
         self.providers = oipc.ProviderIndex.of(ctx)
@@ -96,7 +134,7 @@ class ProcessBuilder:
         variant: int,
         product_smiles: str,
         level: int,
-    ):
+    ) -> o.Process:
         score = reaction.score * reaction.feasibility
         name = (
             f"production of {ref_flow.name} | variant {variant} "
