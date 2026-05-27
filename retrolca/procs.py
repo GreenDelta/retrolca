@@ -8,7 +8,7 @@ import olca_schema as o
 from rdkit import Chem
 from rdkit.Chem import Draw
 
-from . import oipc, proto, smiles
+from . import oipc, smiles, tool
 from .naming import CIR, NamingService
 from .res import Res, nil, unwrap
 
@@ -29,7 +29,7 @@ class ProcessBuilder:
     def __init__(
         self,
         ctx: oipc.IpcContext,
-        retro: proto.RetroClient,
+        retro: tool.RetroTool,
         max_variants=3,
         max_levels=5,
         category: str | None = None,
@@ -117,7 +117,7 @@ class ProcessBuilder:
                 self.providers.put(smiles_code, process)
         return processes
 
-    def __get_reactions(self, smiles_code: str) -> list[proto.Reaction]:
+    def __get_reactions(self, smiles_code: str) -> list[tool.Reaction]:
         reactions, err = self.retro.expand(smiles_code)
         if err:
             log.info(
@@ -138,7 +138,7 @@ class ProcessBuilder:
     def __init_process(
         self,
         ref_flow: o.Flow,
-        reaction: proto.Reaction,
+        reaction: tool.Reaction,
         variant: int,
         product_smiles: str,
         level: int,
@@ -194,7 +194,7 @@ class ProcessBuilder:
         return flow
 
     def __add_reaction_source(
-        self, process: o.Process, smiles_code: str, reaction: proto.Reaction
+        self, process: o.Process, smiles_code: str, reaction: tool.Reaction
     ):
         image_data = self.__reaction_image(smiles_code, reaction)
         if not image_data:
@@ -225,7 +225,7 @@ class ProcessBuilder:
         process.process_documentation.sources = [source_ref]
 
     def __reaction_image(
-        self, product_smiles: str, reaction: proto.Reaction
+        self, product_smiles: str, reaction: tool.Reaction
     ) -> str | None:
         codes = [smiles.canonicalize(code) for code in reaction.smiles]
         codes.append(product_smiles)

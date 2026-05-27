@@ -1,21 +1,26 @@
 from .askcos import AskcosClient, AskcosConfig, AskcosModel
+from .naming import CIR, CachingNamingService, NamingInfo, NamingService
 from .oipc import FlowIndex, IpcContext, ProviderIndex
 from .procs import ProcessBuilder
-from .proto import Reaction, RetroClient
+from .tool import CachingRetroTool, Reaction, RetroTool
 from .zynth import ZynthClient, ZynthConfig, ZynthTool
 
 __all__ = [
     "AskcosClient",
     "AskcosConfig",
     "AskcosModel",
-    "RetroModel",
-    "Reaction",
-    "IpcContext",
+    "CachingRetroTool",
+    "CIR",
+    "CachingNamingService",
     "FlowIndex",
+    "IpcContext",
+    "NamingInfo",
+    "NamingService",
+    "ProcessBuilder",
     "ProviderIndex",
-    "RetroClient",
+    "Reaction",
+    "RetroTool",
     "ZynthConfig",
     "ZynthClient",
-    "ProcessBuilder",
     "ZynthTool",
 ]

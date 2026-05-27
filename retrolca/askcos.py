@@ -8,7 +8,7 @@ from typing import Any, override
 
 import requests
 
-from .proto import Reaction, RetroClient
+from .tool import Reaction, RetroTool
 from .res import Res, chain_err, nil
 
 log = logging.getLogger(__name__)
@@ -97,7 +97,7 @@ def _reaction_of(result: dict[str, Any]) -> Reaction | None:
     return Reaction(score, feasibility, smiles)
 
 
-class AskcosClient(RetroClient):
+class AskcosClient(RetroTool):
     def __init__(
         self,
         config: AskcosConfig,
@@ -106,6 +106,7 @@ class AskcosClient(RetroClient):
         self.session = requests.Session()
         self.endpoint = config.endpoint.strip().rstrip("/")
         self.model = model
+        self.id = f"askcos-{model.value}"
 
         log.info("Requesting API token")
         resp = self.session.post(

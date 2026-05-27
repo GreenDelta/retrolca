@@ -8,15 +8,16 @@ from typing import override
 import aizynthfinder.aizynthfinder as ai
 import requests
 
-from .proto import Reaction, RetroClient
+from .tool import Reaction, RetroTool
 from .res import Res, nil
 
 log = logging.getLogger(__name__)
 
 
-class ZynthTool(RetroClient):
+class ZynthTool(RetroTool):
     def __init__(self, configfile: str | Path):
         log.info("Loading AiZynthExpander with config: %s", configfile)
+        self.id = "zynth"
         self.expander = ai.AiZynthExpander(configfile=str(configfile))
         self.expander.expansion_policy.select("uspto")
         self.expander.filter_policy.select("uspto")
@@ -70,7 +71,7 @@ class ZynthConfig:
             return ZynthConfig(**d)
 
 
-class ZynthClient(RetroClient):
+class ZynthClient(RetroTool):
     def __init__(self, config: ZynthConfig):
         self.endpoint = config.endpoint.strip().rstrip("/")
         self.session = requests.Session()
