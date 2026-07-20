@@ -1,0 +1,95 @@
+# This is a Jython script for cleaning up the database after a tool-run. It can
+be directly executed in the Python editor in openLCA. The idea is, when you
+generated processes, you would review them and create a product system linking
+the processes you want to keep. The rest of the processes (including their
+product flows and sources), which are unused then, can be deleted by this script
+then. As it should not delete the complete background database, you give the
+category path under which you generated the processes as input:
+
+root = "Retrosynthesis/Inbox"
+
+sql = NativeSql.on(db)
+
+
+def get_removal_categories():
+    prefix = root.lower()
+    ids = set()
+    for c in db.getAll(Category):
+        path = c.toPath().lower()
+        if path.startswith(prefix):
+            ids.add(c.id)
+    return ids
+
+
+def get_entities(table, category_ids):
+    cids_str = ", ".join([str(i) for i in category_ids])
+    query = (
+        "select id from %s where f_category in (%s)"
+        % (table, cids_str)
+    )
+    return collect_ids(query)
+
+
+def collect_ids(query):
+    ids = set()
+    def add_id(row):
+        ids.add(row.getLong(1))
+        return True
+    sql.query(query, add_id)
+    return ids
+
+
+def delete_sources(process_ids):
+    pids_str = ", ".join([str(pid) for pid in process_ids])
+    query = """
+      select distinct link.f_source from tbl_processes p
+        inner join tbl_process_docs doc on p.f_process_doc = doc.id
+        inner join tbl_source_links link on link.f_owner = doc.id
+        where p.id in (%s)
+    """ % pids_str
+    sids = collect_ids(query)
+    for sid in sids:
+        source = db.get(Source, sid)
+        print "Delete source: %s" % source.name
+        db.delete(source)
+
+
+def delete_processes(ids):
+    for pid in ids:
+        process = db.get(Process, pid)
+        print "Delete process: %s" % process.name
+        db.delete(process)
+
+
+def delete_flows(categories):
+    used = collect_ids("select distinct f_flow from tbl_exchanges")
+    candidates = get_entities("tbl_flows", categories)
+    removals = candidates - used
+    for fid in removals:
+        flow = db.get(Flow, fid)
+        print "Delete flow: %s" % flow.name
+        db.delete(flow)
+
+
+def main():
+    cids = get_removal_categories()
+    if len(cids) == 0:
+        print "No categories found"
+        return
+
+    p_candidates = get_entities("tbl_processes", cids)
+    if len(p_candidates) == 0:
+        print "Non processes found"
+        return
+
+    p_used = collect_ids(
+        "select distinct f_process from"
+        " tbl_product_system_processes"
+    )
+
+    p_removals = p_candidates - p_used
+    delete_sources(p_removals)
+    delete_processes(p_removals)
+    delete_flows(cids)
+
+main()
