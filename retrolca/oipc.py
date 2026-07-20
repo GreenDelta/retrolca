@@ -96,14 +96,22 @@ class IpcContext:
                 return f
         return None
 
-    def molar_mass_of(self, flow: o.Flow) -> float | None:
+    def molar_mass_of(self, flow: o.Flow | o.Ref) -> float | None:
         """Returns the molar mass in g/mol of the flow for this context.
 
         Returns ``None`` if the respective flow properties for mass and chemical
         amount are not defined in the flow.
         """
-        if not flow or not flow.flow_properties:
+        if not flow:
             return None
+        if isinstance(flow, o.Ref):
+            f = self.client.get(o.Flow, flow.id)
+            if not f:
+                return None
+            flow = f
+        if not flow.flow_properties:
+            return None
+
         mass_prop = self.mass_prop_of(flow)
         chem_prop = self.chem_prop_of(flow)
         if not mass_prop or not chem_prop:

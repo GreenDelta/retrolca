@@ -55,9 +55,8 @@ class ProcessBuilder:
                 should be linked to the generated processes. This process needs
                 to have a single product output measured in mass. It is linked
                 as an input to the generated processes. Each generated process
-                has an output of 1 mol of the respective product. The molar mass
-                of that product is then used to calculate the corresponding
-                input mass from the generic production process.
+                has an output of 1 kg of the respective product. Thus, the
+                generic production process is also linked with 1 kg input.
         """
         self.ctx = ctx
         log.info("Build provider and flow index")
@@ -102,6 +101,9 @@ class ProcessBuilder:
         ref_flow = self.__resolve_product(smiles_code, name, category)
         if not ref_flow:
             return []
+        mm_prod = self.ctx.molar_mass_of(ref_flow)
+        if not mm_prod:
+            return []
         reactions = self.__get_reactions(smiles_code)
         if len(reactions) == 0:
             return []
@@ -113,15 +115,32 @@ class ProcessBuilder:
             process = self.__init_process(
                 ref_flow, reaction, variant, smiles_code, category, level
             )
+
             for si in reaction.smiles:
                 smiles_i = smiles.canonicalize(si)
-                provider = self.__resolve_provider(smiles_i, category, level + 1)
+                provider = self.__resolve_provider(
+                    smiles_i, category, level + 1
+                )
                 if not provider:
                     continue
-                inp = o.new_input(
-                    process, unwrap(provider.flow), 1, self.ctx.mole
-                )
-                inp.flow_property = self.ctx.chem_amount.to_ref()
+                flow = unwrap(provider.flow)
+                mm_react = self.ctx.molar_mass_of(flow)
+                if not mm_react:
+                    continue
+
+                # with n: chemical amount, m: mass, and mm: molar mass
+                # as we have a reaction of 1 mol reactant (input) and
+                # 1 mol product (output) with mm = m / n
+                # n_inp = n_out = 1 mol
+                # n_out = m_out / mm_out
+                # m_inp = n_inp * mm_inp
+                # m_inp = n_out * mm_inp
+                # m_inp = (m_out / mm_out) * mm_inp
+                # m_inp = m_out * mm_inp / mm_out  | m_out = 1 (kg)
+                # m_inp = mm_inp / mm_out
+                amount = mm_react / mm_prod
+                inp = o.new_input(process, flow, amount, self.ctx.kg)
+                inp.flow_property = self.ctx.mass.to_ref()
                 inp.default_provider = provider.provider
             self.ctx.client.put(process)
             log.info("Created process %s", process.name)
@@ -167,8 +186,8 @@ class ProcessBuilder:
         if level > 0 and process.category:
             process.category += f"/level {level}"
 
-        qref = o.new_output(process, ref_flow, 1, self.ctx.mole)
-        qref.flow_property = self.ctx.chem_amount.to_ref()
+        qref = o.new_output(process, ref_flow, 1, self.ctx.kg)
+        qref.flow_property = self.ctx.mass.to_ref()
         qref.is_quantitative_reference = True
         process.other_properties = {
             "Retrosynthesis-Score": reaction.score,
@@ -176,7 +195,7 @@ class ProcessBuilder:
         }
         self.__add_reaction_source(process, product_smiles, reaction, category)
         if self.gen_provider:
-            self.__add_gen_input(process, ref_flow)
+            self.__add_gen_input(process)
         return process
 
     def __resolve_provider(
@@ -274,20 +293,13 @@ class ProcessBuilder:
         img.save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode("ascii")
 
-    def __add_gen_input(self, process: o.Process, ref_flow: o.Flow):
+    def __add_gen_input(self, process: o.Process):
         if not self.gen_provider or not self.gen_provider.flow:
             return
-
-        molar_mass = self.ctx.molar_mass_of(ref_flow)
-        if not molar_mass:
-            raise ValueError(
-                f"Could not determine molar mass of flow '{ref_flow.name}'"
-            )
-
         inp = o.new_input(
             process,
             unwrap(self.gen_provider.flow),
-            molar_mass / 1000,
+            1,
             self.ctx.kg,
         )
         inp.flow_property = self.ctx.mass.to_ref()
@@ -299,7 +311,6 @@ class ProcessBuilder:
         name: str | None = None,
         category: str | None = None,
     ) -> Res[o.Flow]:
-
         info = self.naming.get_info(smiles_code)
         product: str
         if name:
