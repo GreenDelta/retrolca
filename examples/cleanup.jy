@@ -1,10 +1,10 @@
 # This is a Jython script for cleaning up the database after a tool-run. It can
-be directly executed in the Python editor in openLCA. The idea is, when you
-generated processes, you would review them and create a product system linking
-the processes you want to keep. The rest of the processes (including their
-product flows and sources), which are unused then, can be deleted by this script
-then. As it should not delete the complete background database, you give the
-category path under which you generated the processes as input:
+# be directly executed in the Python editor in openLCA. The idea is, when you
+# generated processes, you would review them and create a product system linking
+# the processes you want to keep. The rest of the processes (including their
+# product flows and sources), which are unused then, can be deleted by this script
+# then. As it should not delete the complete background database, you give the
+# category path under which you generated the processes as input:
 
 root = "Retrosynthesis/Inbox"
 

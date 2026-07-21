@@ -123,6 +123,7 @@ class ProcessBuilder:
                 ref_flow, reaction, variant, smiles_code, category, level
             )
 
+            input_mass = 0.0
             for si in reaction.smiles:
                 smiles_i = smiles.canonicalize(si)
                 provider = self.__resolve_provider(
@@ -146,9 +147,14 @@ class ProcessBuilder:
                 # m_inp = m_out * mm_inp / mm_out  | m_out = 1 (kg)
                 # m_inp = mm_inp / mm_out
                 amount = mm_react / mm_prod
+                input_mass += amount
                 inp = o.new_input(process, flow, amount, self.ctx.kg)
                 inp.flow_property = self.ctx.mass.to_ref()
                 inp.default_provider = provider.provider
+
+            if input_mass > 1.0 and self.bal_provider:
+                self.__add_bal_exchange(process, input_mass - 1.0)
+
             self.ctx.client.put(process)
             log.info("Created process %s", process.name)
             processes.append(process)
