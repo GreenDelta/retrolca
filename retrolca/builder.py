@@ -15,13 +15,13 @@ from .res import Res, nil, unwrap
 log = logging.getLogger(__name__)
 
 
-def _find_gen_provider(
-    client: ipc.ProtoClient, gen_process: str
+def _find_provider(
+    process_uid: str, providers: list[o.TechFlow]
 ) -> o.TechFlow | None:
-    for p in client.get_providers():
-        if p.provider and p.provider.id == gen_process:
+    for p in providers:
+        if p.provider and p.provider.id == process_uid:
             return p
-    log.warning("Could not find generic production process: %s", gen_process)
+    log.warning("Could not find process: %s", process_uid)
     return None
 
 
@@ -33,6 +33,7 @@ class ProcessBuilder:
         max_variants=3,
         max_levels=5,
         gen_process: str | None = None,
+        bal_process: str | None = None,
         naming: NamingService = CIR(),
     ):
         """Constructs a new process builder.
@@ -65,9 +66,15 @@ class ProcessBuilder:
         self.tool = tool
         self.max_variants = max_variants
         self.max_levels = max_levels
-        self.gen_provider = (
-            _find_gen_provider(ctx.client, gen_process) if gen_process else None
-        )
+
+        self.gen_provider: o.TechFlow | None = None
+        self.bal_provider: o.TechFlow | None = None
+        if gen_process or bal_process:
+            providers = ctx.client.get_providers()
+            if gen_process:
+                self.gen_provider = _find_provider(gen_process, providers)
+            if bal_process:
+                self.bal_provider = _find_provider(bal_process, providers)
         self.naming = naming
 
     def build(
@@ -194,8 +201,7 @@ class ProcessBuilder:
             "Retrosynthesis-Feasibility": reaction.feasibility,
         }
         self.__add_reaction_source(process, product_smiles, reaction, category)
-        if self.gen_provider:
-            self.__add_gen_input(process)
+        self.__add_gen_input(process)
         return process
 
     def __resolve_provider(
@@ -273,7 +279,7 @@ class ProcessBuilder:
         mols = []
         labels = []
         for code in codes:
-            mol = Chem.MolFromSmiles(code)  # ty: ignore
+            mol = Chem.MolFromSmiles(code)
             if not mol:
                 log.warning("Could not render molecule for SMILES: %s", code)
                 continue
@@ -304,6 +310,19 @@ class ProcessBuilder:
         )
         inp.flow_property = self.ctx.mass.to_ref()
         inp.default_provider = self.gen_provider.provider
+
+    def __add_bal_exchange(self, process: o.Process, amount: float):
+        if not self.bal_provider or not self.bal_provider.flow:
+            return
+        flow = unwrap(self.bal_provider.flow)
+        exchange: o.Exchange
+        if flow.flow_type == o.FlowType.PRODUCT_FLOW:
+            exchange = o.new_input(process, flow, amount, self.ctx.kg)
+            exchange.is_avoided_product = True
+        else:
+            exchange = o.new_output(process, flow, amount, self.ctx.kg)
+        exchange.flow_property = self.ctx.mass.to_ref()
+        exchange.default_provider = self.bal_provider.provider
 
     def create_product(
         self,
