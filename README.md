@@ -21,7 +21,8 @@ linked to ecoinvent background data.
 
 `retrolca` can be used with any openLCA database. If no suitable background
 processes are available, it creates all required product flows and processes for
-the generated synthesis routes.
+the generated synthesis routes. For this, the openLCA reference flow properties
+`Mass` and `Chemical amount` must be present in the database.
 
 Its full potential is realized when used with a background database that already
 contains chemical production processes, such as ecoinvent. If the product flows
@@ -51,9 +52,13 @@ chemical:
 [PubChem tool in openLCA](./img/pubchem_tool.png)
 
 `retrolca` also contains tooling to enrich a database with SMILES codes and
-other chemical properties from PubChem. For example, this script would try to
-decorate all flows with `manufacture of basic chemicals` in their category path
-with chemical properties from PubChem:
+other chemical properties from PubChem. If it can find the corresponding data on
+PubChem, the `pubchem.py` decorator will also add `Chemical amount` as a flow
+property (using the molar mass to calculate the conversion factor from the
+reference property `Mass`).
+
+For example, this script would try to decorate all flows with `manufacture of
+basic chemicals` in their category path with chemical properties from PubChem:
 
 ```python
 import olca_ipc as ipc
