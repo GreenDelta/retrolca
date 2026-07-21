@@ -77,6 +77,45 @@ class ProcessBuilder:
                 self.bal_provider = _find_provider(bal_process, providers)
         self.naming = naming
 
+    def expand_process(self, process_id: str, category: str | None):
+        process = self.ctx.client.get(o.Process, process_id)
+        if not process:
+            log.error("could not find process: %s", process_id)
+            return
+        if not process.exchanges:
+            return
+        expanded = 0
+        log.info("expand process: %s", process.name)
+        for e in process.exchanges:
+            if (
+                not e.is_input
+                or e.default_provider
+                or e.is_avoided_product
+                or not e.flow
+            ):
+                continue
+            flow = self.ctx.client.get(o.Flow, e.flow.id)
+            if not flow:
+                continue
+            smiles_code = smiles.of_flow(flow)
+            if not smiles_code:
+                continue
+
+            log.info("expand input of: %s", flow.name)
+            providers = self.build(smiles_code, flow.name, category, 0)
+            if len(providers) > 0:
+                e.default_provider = providers[0].to_ref()
+                expanded += 1
+
+        if expanded == 0:
+            log.info("could not expand any inputs in: %s", process.name)
+            return
+
+        log.info(
+            "update process %s with %d new providers", process.name, expanded
+        )
+        self.ctx.client.put(process)
+
     def build(
         self,
         smiles_code: str,
