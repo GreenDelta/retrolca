@@ -17,45 +17,59 @@ linked to ecoinvent background data.
 
 ## Requirements
 
+### The Python environment and openLCA IPC
+
+`retrolca` is a Python project which can be quickly set up with
+[uv](https://docs.astral.sh/uv/). When you downloaded the project, you can then
+quickly install the required interpreter and dependencies via `uv sync`:
+
+```bash
+# open a terminal and navigate to the project folder
+cd retrolca
+
+# download the Python interpreter and dependencies
+uv sync
+
+# modify and run the scripts in this project
+uv run exampels/...py
+```
+
+As said above, `retrolca` communicates with openLCA via the [openLCA IPC
+interface](https://greendelta.github.io/openLCA-ApiDoc/). In openLCA, activate
+the database where you want to generate the processes and start the IPC server
+via `Tools > Developer tools > IPC Server`.
+
+
 ### The background database
 
-`retrolca` can be used with any openLCA database. If no suitable background
-processes are available, it creates all required product flows and processes for
-the generated synthesis routes. For this, the openLCA reference flow properties
-`Mass` and `Chemical amount` must be present in the database.
+`retrolca` can be used with any openLCA database, but the flow properties `Mass`
+and `Chemical amount` must be present (as provided by the openLCA reference
+data). If no suitable background processes are available, `retrolca` creates the
+required product flows and processes for the synthesis routes.
 
-Its full potential is realized when used with a background database that already
-contains chemical production processes, such as ecoinvent. If the product flows
-in that database are annotated with SMILES codes, `retrolca` can automatically
-identify and link matching providers while building the process chain. This
-avoids regenerating existing background processes and integrates the generated
-foreground system directly with the background database.
+However, its full potential is realized with a background database containing
+chemical production processes, such as ecoinvent. When the product flows of
+these processes have SMILES codes attached, `retrolca` can link them as
+production processes for reactants when generating synthesis routes.
 
 <details>
 
-<summary>Enabling provider linking with SMILES codes</summary>
+<summary>Adding SMILES codes to product flows in openLCA</summary>
 
-For provider linking, `retrolca` needs SMILES codes on the product flows of the
-background database. During process generation, these codes are used to identify
-matching providers and connect the generated foreground processes with existing
-background datasets.
-
-At the moment, `retrolca` reads SMILES information from the additional
-properties of a flow and checks the keys `SMILES`, `Absolute-SMILES`, and
+Currently, `retrolca` reads the SMILES codes from the additional properties of
+product flows, checking possible entries under `SMILES`, `Absolute-SMILES`, and
 `Connectivity-SMILES` (in this order):
 
 [Additional properties](./img/flow_additional_props.png)
 
-In openLCA, you can also try the PubChem tool to get the SMILES code of a
-chemical:
+In openLCA, you can try the PubChem tool to get the SMILES code of a chemical:
 
 [PubChem tool in openLCA](./img/pubchem_tool.png)
 
 `retrolca` also contains tooling to enrich a database with SMILES codes and
 other chemical properties from PubChem. If it can find the corresponding data on
-PubChem, the `pubchem.py` decorator will also add `Chemical amount` as a flow
-property (using the molar mass to calculate the conversion factor from the
-reference property `Mass`).
+PubChem, the `pubchem` decorator will also add `Chemical amount` as a flow
+property (using the molar mass to calculate the conversion factor).
 
 For example, this script would try to decorate all flows with `manufacture of
 basic chemicals` in their category path with chemical properties from PubChem:
@@ -86,43 +100,15 @@ in openLCA. You can of course use other data sources for this in the same ways.
 `retrolca` just needs to find flows with SMILES codes in order to link them in
 process chains.
 
-
 </details>
 
 
+### The Retrosynthesis Tool
 
-
-`ProcessBuilder` is the central component of the workflow. You provide an
-`IpcContext`, a retrosynthesis tool, and the limits for the search space,
-especially the maximum number of variants (`max_variants`) and the maximum
-depth of the generated process chain (`max_levels`). Optionally, you can also
-provide a generic production process via `gen_process`.
-
-For every retrosynthesis step, the builder sorts the returned reactions by
-their confidence and always builds the variants with the highest score. The
-confidence is calculated from retrosynthesis score and feasibility and is also
-stored in the generated process name. For each reactant, the builder first
-tries to link an existing provider from the background database. If no suitable
-provider can be linked, it descends recursively until the configured maximum
-depth is reached and creates the missing intermediate processes on the way.
-
-If `gen_process` is set, each generated process also gets an input from this
-generic production process. The referenced process must have a single product
-output measured in mass. Since each generated process has a product output of
-1 mol, `ProcessBuilder` uses the molar mass of that product to calculate the
-corresponding mass input from the generic production process.
-
-
-
-
-### Retrosynthesis Tool
-
-`retrolca` can build processes from different retrosynthesis tools. At the
-moment, the package supports ASKCOS and AiZynthFinder.
-
-The integration point is intentionally simple: `ProcessBuilder` accepts any
-retrosynthesis backend that implements the `RetroTool` protocol. This makes it
-easy to plug in other tools without changing the builder itself.
+`retrolca` can use different retrosynthesis tools. Currently, it supports ASKCOS
+and AiZynthFinder, but another retrosynthesis backend could be easily added. It
+just needs to implement the `RetroTool` protocol, providing an `expand` method
+to generate possible reactions for a given SMILES code of a chemical:
 
 ```python
 class RetroTool(Protocol):
@@ -130,12 +116,9 @@ class RetroTool(Protocol):
     def expand(self, smiles: str) -> Res[list[Reaction]]: ...
 ```
 
-Any class that provides an `id` and an `expand(smiles)` method with this shape
-can be passed to `ProcessBuilder`. Registering a custom retrosynthesis tool
-just means implementing this protocol and then passing the instance as the
-`tool` argument.
+<details>
 
-#### AiZynthFinder
+<summary>Setting up AiZynthFinder</summary>
 
 For AiZynthFinder, install the project dependencies and download the public
 model files into a local `models` folder.
@@ -178,6 +161,8 @@ builder.build(
 This example should then generate the following processes:
 
 ![Process tree](img/process_tree.png)
+
+</details>
 
 #### ASKCOS
 
@@ -247,6 +232,29 @@ builder.build("CCCCN1CCCC1=O", category="Retrosynthesis/Inbox")
 Custom naming services only need to provide an `id` and a `get_info(smiles)`
 method compatible with `NamingService`. If no name can be resolved,
 the `ProcessBuilder` falls back to the SMILES code.
+
+`ProcessBuilder` is the central component of the workflow. You provide an
+`IpcContext`, a retrosynthesis tool, and the limits for the search space,
+especially the maximum number of variants (`max_variants`) and the maximum
+depth of the generated process chain (`max_levels`). Optionally, you can also
+provide a generic production process via `gen_process`.
+
+For every retrosynthesis step, the builder sorts the returned reactions by
+their confidence and always builds the variants with the highest score. The
+confidence is calculated from retrosynthesis score and feasibility and is also
+stored in the generated process name. For each reactant, the builder first
+tries to link an existing provider from the background database. If no suitable
+provider can be linked, it descends recursively until the configured maximum
+depth is reached and creates the missing intermediate processes on the way.
+
+If `gen_process` is set, each generated process also gets an input from this
+generic production process. The referenced process must have a single product
+output measured in mass. Since each generated process has a product output of
+1 mol, `ProcessBuilder` uses the molar mass of that product to calculate the
+corresponding mass input from the generic production process.
+
+
+
 
 ## Components
 
