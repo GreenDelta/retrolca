@@ -1,8 +1,9 @@
+import copy
 import json
 import logging
 import time
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 from pathlib import Path
 from typing import Any, override
 
@@ -14,7 +15,7 @@ from .tool import Reaction, RetroTool
 log = logging.getLogger(__name__)
 
 
-class AskcosModel(StrEnum):
+class AskcosModel(str, Enum):
     BKMS_METABOLIC = "bkms_metabolic"
     PISTACHIO = "pistachio"
     PISTACHIO_RINGBREAKER = "pistachio_ringbreaker"
@@ -36,9 +37,18 @@ class AskcosLogin:
             return AskcosLogin(**config)
 
 
-def _request_of(
-    smiles_code: str, model: AskcosModel = AskcosModel.PISTACHIO
+def _request_object_of(
+    smiles_code: str,
+    model: str | None = None,
+    options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if options:
+        obj = copy.deepcopy(options)
+        obj["smiles"] = smiles_code
+        return obj
+
+    retro_model = model if model else AskcosModel.PISTACHIO
+
     return {
         "smiles": smiles_code,
         "retro_backend_options": [
@@ -46,7 +56,7 @@ def _request_of(
                 "retro_backend": "template_relevance",
                 "max_num_templates": 1000,
                 "max_cum_prob": 0.999,
-                "retro_model_name": model.value,
+                "retro_model_name": retro_model,
             }
         ],
         "retro_rerank_backend": "relevance_heuristic",
@@ -101,12 +111,29 @@ class AskcosClient(RetroTool):
     def __init__(
         self,
         config: AskcosLogin,
-        model: AskcosModel = AskcosModel.PISTACHIO,
+        model: str | None = None,
+        options: dict[str, Any] | None = None,
     ):
         self.session = requests.Session()
         self.endpoint = config.endpoint.strip().rstrip("/")
-        self.model = model
-        self.id = f"askcos-{model.value}"
+
+        # we include the model name into the ID because the ID
+        # is used as cache-key for example and different models
+        # give of course different results.
+        if not options:
+            self.model = model if model else AskcosModel.PISTACHIO
+            self.id = f"askcos-{self.model}"
+            self.options = None
+        else:
+            retro_opts = options.get("retro_backend_options")
+            if isinstance(retro_opts, dict):
+                model_name = retro_opts.get("retro_model_name")
+            else:
+                # from the API doc, reaxys is the default model,
+                # when nothing else is specified.
+                model_name = "reaxys"
+            self.id = f"askcos-{model_name}"
+            self.options = options
 
         log.info("Requesting API token")
         resp = self.session.post(
@@ -150,7 +177,7 @@ class AskcosClient(RetroTool):
     def _call(self, smiles_code: str) -> Res[str]:
         log.info("Submitting retrosynthesis task for: %s", smiles_code)
         try:
-            req = _request_of(smiles_code, self.model)
+            req = _request_object_of(smiles_code, self.model, self.options)
             response = self.session.post(
                 self._p("/tree-search/expand-one/call-async"),
                 params={"priority": 0},
