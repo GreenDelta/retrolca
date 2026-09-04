@@ -3,7 +3,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, override
 
@@ -15,7 +15,7 @@ from .tool import Reaction, RetroTool
 log = logging.getLogger(__name__)
 
 
-class AskcosModel(str, Enum):
+class AskcosModel(StrEnum):
     BKMS_METABOLIC = "bkms_metabolic"
     PISTACHIO = "pistachio"
     PISTACHIO_RINGBREAKER = "pistachio_ringbreaker"
@@ -37,14 +37,49 @@ class AskcosLogin:
             return AskcosLogin(**config)
 
 
+def _model_name_of(options: dict[str, Any]) -> str | None:
+    """Returns the retro model name from the given ASKCOS options.
+
+    It returns 'reaxys' if no other model name was found, because
+    this is the default model that is used in this case according
+    to the ASKCOS API documentation.
+    """
+    retro = options.get("retro_backend_options")
+    if isinstance(retro, dict):
+        entries = [retro]
+    elif isinstance(retro, list):
+        entries = retro
+    else:
+        entries = []
+    for entry in entries:
+        if isinstance(entry, dict):
+            name = entry.get("retro_model_name")
+            if name:
+                return str(name)
+    return "reaxys"
+
+
+def _set_model_in_options(options: dict[str, Any], model: AskcosModel) -> None:
+    """Writes retro_model_name into the retro_backend_options of options."""
+    retro = options.get("retro_backend_options")
+    if isinstance(retro, dict):
+        retro["retro_model_name"] = model.value
+    elif isinstance(retro, list) and retro and isinstance(retro[0], dict):
+        retro[0]["retro_model_name"] = model.value
+    else:
+        options["retro_backend_options"] = {"retro_model_name": model.value}
+
+
 def _request_object_of(
     smiles_code: str,
-    model: str | None = None,
+    model: AskcosModel | None = None,
     options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if options:
         obj = copy.deepcopy(options)
         obj["smiles"] = smiles_code
+        if model:
+            _set_model_in_options(obj, model)
         return obj
 
     retro_model = model if model else AskcosModel.PISTACHIO
@@ -56,7 +91,7 @@ def _request_object_of(
                 "retro_backend": "template_relevance",
                 "max_num_templates": 1000,
                 "max_cum_prob": 0.999,
-                "retro_model_name": retro_model,
+                "retro_model_name": retro_model.value,
             }
         ],
         "retro_rerank_backend": "relevance_heuristic",
@@ -111,7 +146,7 @@ class AskcosClient(RetroTool):
     def __init__(
         self,
         config: AskcosLogin,
-        model: str | None = None,
+        model: AskcosModel | None = None,
         options: dict[str, Any] | None = None,
     ):
         self.session = requests.Session()
@@ -125,14 +160,8 @@ class AskcosClient(RetroTool):
             self.id = f"askcos-{self.model}"
             self.options = None
         else:
-            retro_opts = options.get("retro_backend_options")
-            if isinstance(retro_opts, dict):
-                model_name = retro_opts.get("retro_model_name")
-            else:
-                # from the API doc, reaxys is the default model,
-                # when nothing else is specified.
-                model_name = "reaxys"
-            self.id = f"askcos-{model_name}"
+            self.model = None
+            self.id = f"askcos-{_model_name_of(options)}"
             self.options = options
 
         log.info("Requesting API token")
