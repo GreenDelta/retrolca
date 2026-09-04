@@ -3,16 +3,16 @@ from pathlib import Path
 
 import olca_ipc as ipc
 
-import retrolca as zn
+import retrolca as retro
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
     config = Path(__file__).parent.parent / "models/config.yml"
-    tool = zn.ZynthTool(config)
-    ctx, _ = zn.IpcContext.of(ipc.Client())
+    tool = retro.ZynthTool(config)
+    ctx, _ = retro.IpcContext.of(ipc.Client())
     assert ctx
-    builder = zn.ProcessBuilder(
+    builder = retro.ProcessBuilder(
         ctx,
         tool,
         max_levels=3,

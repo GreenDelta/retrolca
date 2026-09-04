@@ -58,6 +58,16 @@ class ProcessBuilder:
                 as an input to the generated processes. Each generated process
                 has an output of 1 kg of the respective product. Thus, the
                 generic production process is also linked with 1 kg input.
+            bal_process:
+                An optional ID of a "balancing" process. This process needs to
+                have a reference flow, a waste input or product output, given in
+                mass. For a generated process of a reaction, if the mass of the
+                reactants is smaller than the mass of the output, the balancing
+                process is linked with that mass difference. Typically a waste
+                treatment process is used in this case and the mass difference
+                is then added as waste output linked to that waste treatment
+                process. If a production process is used, the difference is
+                linked as avoided product output to the balancing process.
         """
         self.ctx = ctx
         log.info("Build provider and flow index")

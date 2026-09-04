@@ -120,61 +120,57 @@ class RetroTool(Protocol):
 
 <summary>Setting up AiZynthFinder</summary>
 
-For AiZynthFinder, install the project dependencies and download the public
-model files into a local `models` folder.
+To setup AiZynthFinder as local retrosynthesis tool, install the project
+dependencies via `uv sync` as described above. You will then have a
+`download_public_data models` tool in your local Python environment, that can
+download the public AiZynthFinder models. Create a `models` folder and set this
+as the download target:
 
 ```bash
-# easy with uv; this will create a virtual environment with the dependencies
-# AiZynthFinder comes with a script for downloading public models
-uv sync
+# create the models folder
 mkdir models
+
+# download the public AiZynthFinder models
 ./.venv/bin/download_public_data models
 
 # or on Windows
 .\.venv\Scripts\download_public_data.exe models
 ```
 
-The example in [examples/zynthfinder_example.py](examples/zynthfinder_example.py)
-loads the generated `models/config.yml`, wraps it in `ZynthTool`, and passes
-that tool to `ProcessBuilder`.
+This will download the models and generate a `models/config.yml` file with which
+you can initialize the `ZynthTool` then, which wraps the AiZynthFinder in the
+`RetroTool` protocol. See the
+[examples/zynthfinder_example.py](examples/zynthfinder_example.py) for a full
+example.
 
 ```python
-import olca_ipc as ipc
-import retrolca as r
+# finds the models/config.yml file relative to the current script file
+config = Path(__file__).parent.parent / "models/config.yml"
 
-tool = r.ZynthTool(Path("models/config.yml"))
-ctx, _ = r.IpcContext.of(ipc.Client())
-builder = r.ProcessBuilder(
-  ctx,
-  tool,
-  max_levels=5,
-  max_variants=2,
-  gen_process="83083965-4104-4c87-88af-bc200b6a520c",
-)
-builder.build(
-  "CCCCN1CCCC1=O",
-  "1-butylpyrrolidin-2-one",
-  category="Retrosynthesis/Inbox",
-)
+# initializes AiZynthFinder via the ZynthTool wrapper
+tool = retro.ZynthTool(config)
 ```
-
-This example should then generate the following processes:
-
-![Process tree](img/process_tree.png)
 
 </details>
 
-#### ASKCOS
+<details>
 
-For ASKCOS, create a JSON config file with the API endpoint and login data.
+<summary>Connecting to ASKCOS<summary>
+
+`retrolca` can connect to an ASKCOS server instance via it's REST API. For this,
+you need to provide the login data of a valid user account as a JSON file with
+the following format:
 
 ```json
 {
-  "endpoint": "https://your-askcos-instance",
+  "endpoint": "https://your-askcos-instance/api",
   "user": "your-user",
   "password": "your-password"
 }
 ```
+
+If you use the public ASKCOS instance, the endpoint is
+`https://askcos.mit.edu/api`.
 
 The example in [examples/askcos_example.py](examples/askcos_example.py) loads
 that config, creates an `AskcosClient`, and uses it with `ProcessBuilder`.
@@ -253,6 +249,30 @@ output measured in mass. Since each generated process has a product output of
 1 mol, `ProcessBuilder` uses the molar mass of that product to calculate the
 corresponding mass input from the generic production process.
 
+
+```python
+import olca_ipc as ipc
+import retrolca as r
+
+tool = r.ZynthTool(Path("models/config.yml"))
+ctx, _ = r.IpcContext.of(ipc.Client())
+builder = r.ProcessBuilder(
+  ctx,
+  tool,
+  max_levels=5,
+  max_variants=2,
+  gen_process="83083965-4104-4c87-88af-bc200b6a520c",
+)
+builder.build(
+  "CCCCN1CCCC1=O",
+  "1-butylpyrrolidin-2-one",
+  category="Retrosynthesis/Inbox",
+)
+```
+
+This example should then generate the following processes:
+
+![Process tree](img/process_tree.png)
 
 
 
