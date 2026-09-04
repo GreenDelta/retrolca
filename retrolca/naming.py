@@ -87,6 +87,9 @@ class CachingNamingService(NamingService):
 
     def close(self):
         self.conn.close()
+        close = getattr(self.service, "close", None)
+        if callable(close):
+            close()
 
     def __key_of(self, smiles: str) -> str:
         raw = f"{self.service.id}||{smiles}".encode("utf-8")

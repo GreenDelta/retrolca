@@ -144,13 +144,13 @@ you can initialize the `ZynthTool` then, which wraps the AiZynthFinder in the
 example.
 
 ```python
-import retrolca as retro
+import retrolca as r
 
 # finds the models/config.yml file relative to the current script file
 config = Path(__file__).parent.parent / "models/config.yml"
 
 # initializes AiZynthFinder via the ZynthTool wrapper
-tool = retro.ZynthTool(config)
+tool = r.ZynthTool(config)
 ```
 
 </details>
@@ -178,41 +178,72 @@ this
 
 ```python
 
-import retrolca as retro
+import retrolca as r
 
+login = r.AskcosLogin.from_file("auth/askcos_login.json")
+client = r.AskcosClient(login)
 
-with r.AskcosClient(config) as tool:
-  builder = r.ProcessBuilder(
-    ctx,
-    tool,
-    max_variants=2,
-    max_levels=2,
-    gen_process="83083965-4104-4c87-88af-bc200b6a520c",
-  )
-  builder.build(
-    "CCOP(=O)(OCC)OCC",
-    name="triethyl phosphate",
-    category="Retrosynthesis/Inbox",
-  )
-
-
-
-config = r.AskcosConfig.from_file(Path("auth/remote-askcos.json"))
-ctx, _ = r.IpcContext.of(ipc.Client())
-with r.AskcosClient(config) as tool:
-  builder = r.ProcessBuilder(
-    ctx,
-    tool,
-    max_variants=2,
-    max_levels=2,
-    gen_process="83083965-4104-4c87-88af-bc200b6a520c",
-  )
-  builder.build(
-    "CCOP(=O)(OCC)OCC",
-    name="triethyl phosphate",
-    category="Retrosynthesis/Inbox",
-  )
+# close the client when you are done
+client.close()
 ```
+
+See the [examples/zynthfinder_example.py](examples/zynthfinder_example.py) for a
+full example. ASKCOS has quite some configuration options which `retrolca` can
+pass to the API. If you just want to change the model and keep the default
+options, just pass the model name to the client. You can use the constants
+`retrolca` defines for this, or just pass the name of the model to the client:
+
+```python
+# ...
+client = r.AskcosClient(login, model=r.AskcosModel.PISTACHIO)
+```
+
+You can also pass in a dictionary with all possible configuration options when
+constructing the client:
+
+```python
+# ...
+client = r.AskcosClient(login, options=
+    {
+        "retro_backend_options": [
+            {
+                "retro_backend": "template_relevance",
+                "retro_model_name": "reaxys",
+                "max_num_templates": 1000,
+                "max_cum_prob": 0.995,
+                "attribute_filter": [],
+                "threshold": 0.3,
+                "top_k": 10,
+            }
+        ],
+        "use_fast_filter": True,
+        "fast_filter_threshold": 0.75,
+        "retro_rerank_backend": "relevance_heuristic",
+        "atom_map_backend": "rxnmapper",
+        # ...
+    },
+)
+```
+
+See the official ASKCOS API documentation for the full configuration options:
+
+https://askcos.mit.edu/docs#/tree-search/askcos_run_retro_expansion_async
+
+We call the `/api/tree-search/expand-one/call-async` endpoint with the provided
+options. The schema for the options of that method is defined under
+`#compontnes/schemas/ExpandOneInput` in the API documentation.
+
+</details>
+
+<details>
+
+<summary>Caching retrosynthesis results</summary>
+
+A retrosynthesis tool can be wrapped
+
+
+</details>
+
 
 #### Naming service
 

@@ -66,6 +66,9 @@ class CachingRetroTool(RetroTool):
 
     def close(self):
         self.conn.close()
+        close = getattr(self.tool, "close", None)
+        if callable(close):
+            close()
 
     def __key_of(self, smiles: str) -> str:
         raw = f"{self.tool.id}||{smiles}".encode("utf-8")
