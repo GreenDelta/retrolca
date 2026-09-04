@@ -68,6 +68,10 @@ class ProcessBuilder:
                 is then added as waste output linked to that waste treatment
                 process. If a production process is used, the difference is
                 linked as avoided product output to the balancing process.
+            naming:
+                The naming service that should be used to translate SMILES codes
+                into names of chemicals. By default CIR is used if not specified
+                otherwise.
         """
         self.ctx = ctx
         log.info("Build provider and flow index")

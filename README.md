@@ -17,7 +17,7 @@ linked to ecoinvent background data.
 
 ## Requirements
 
-### The Python environment and openLCA IPC
+### The Python Environment and openLCA IPC
 
 `retrolca` is a Python project which can be quickly set up with
 [uv](https://docs.astral.sh/uv/). When you downloaded the project, you can then
@@ -40,7 +40,7 @@ the database where you want to generate the processes and start the IPC server
 via `Tools > Developer tools > IPC Server`.
 
 
-### The background database
+### The Background Database
 
 `retrolca` can be used with any openLCA database, but the flow properties `Mass`
 and `Chemical amount` must be present (as provided by the openLCA reference
@@ -239,18 +239,51 @@ options. The schema for the options of that method is defined under
 
 <summary>Caching retrosynthesis results</summary>
 
-A retrosynthesis tool can be wrapped
+A retrosynthesis tool can be wrapped in a `CachingRetroTool`. This will then
+store the returned results of the tool in a database and checks for stored
+results before redirecting to the wrapped tool. This can be very useful to avoid
+redundant computations. `CachingRetroTool` provides the standard tool protocol
+of retrolca and can be used everywhere where this protocol is expected.
 
+```python
+caching_tool = r.CachingRetroTool("out/cached_reactions.db", tool)
+caching_too.expand("CCOP(=O)(OCC)OCC")
+# ...
+```
 
 </details>
 
 
-#### Naming service
+### The Naming Service
 
-`ProcessBuilder` can also be configured with a naming service that resolves
-names for SMILES codes. This is useful because retrosynthesis tools often
-return structures only, while generated openLCA processes and flows should
-have readable names.
+A retrosynthesis tool typically only returns the SMILES codes of the reactants
+for a given SMILES code of a product. For creating product flows in openLCA for
+these SMILES code, we need a service that translates SMILES codes to names. By
+default `retrolca` uses [CIRpy](https://cirpy.readthedocs.io), a Python package
+that calls [CIR](https://cactus.nci.nih.gov/chemical/structure), for resolving
+chemical names:
+
+```python
+import retrolca as r
+
+cir = r.CIR()
+name = cir.get_name("CCCCN1CCCC1=O")
+```
+
+However, in the same way as for the retrosynthesis tool, there is a common
+protocol for the namen service `NamingService` that should be easy to implement for an alternative service. Also, like for the retroysnthesis it is possible and recommended to use the `CachingNamingService` to wrap the naming service to avoid unnecessary requests (APIs like CIR typically have request limits):
+
+```python
+import retrolca as r
+
+cir = r.CIR()
+caching_cir = r.CachingNamingService("out/cached_names.db", cir)
+name = caching_cir.get_name("CCCCN1CCCC1=O")
+```
+
+
+## The Process Builder
+
 
 By default, `ProcessBuilder` uses `CIR`, but any implementation of the
 `NamingService` protocol can be passed via the `naming` argument. This makes
@@ -272,10 +305,6 @@ builder = r.ProcessBuilder(
 )
 builder.build("CCCCN1CCCC1=O", category="Retrosynthesis/Inbox")
 ```
-
-Custom naming services only need to provide an `id` and a `get_info(smiles)`
-method compatible with `NamingService`. If no name can be resolved,
-the `ProcessBuilder` falls back to the SMILES code.
 
 `ProcessBuilder` is the central component of the workflow. You provide an
 `IpcContext`, a retrosynthesis tool, and the limits for the search space,
