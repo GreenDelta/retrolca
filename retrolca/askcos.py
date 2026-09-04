@@ -8,8 +8,8 @@ from typing import Any, override
 
 import requests
 
-from .tool import Reaction, RetroTool
 from .res import Res, chain_err, nil
+from .tool import Reaction, RetroTool
 
 log = logging.getLogger(__name__)
 
@@ -24,16 +24,16 @@ class AskcosModel(StrEnum):
 
 
 @dataclass
-class AskcosConfig:
+class AskcosLogin:
     endpoint: str
     user: str
     password: str
 
     @classmethod
-    def from_file(cls, path: Path) -> "AskcosConfig":
+    def from_file(cls, path: Path) -> "AskcosLogin":
         with open(path, "r", encoding="utf-8") as f:
             config: dict[str, Any] = json.load(f)
-            return AskcosConfig(**config)
+            return AskcosLogin(**config)
 
 
 def _request_of(
@@ -100,7 +100,7 @@ def _reaction_of(result: dict[str, Any]) -> Reaction | None:
 class AskcosClient(RetroTool):
     def __init__(
         self,
-        config: AskcosConfig,
+        config: AskcosLogin,
         model: AskcosModel = AskcosModel.PISTACHIO,
     ):
         self.session = requests.Session()

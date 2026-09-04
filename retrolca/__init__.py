@@ -1,13 +1,13 @@
-from .askcos import AskcosClient, AskcosConfig, AskcosModel
+from .askcos import AskcosClient, AskcosLogin, AskcosModel
+from .builder import ProcessBuilder
 from .naming import CIR, CachingNamingService, NamingInfo, NamingService
 from .oipc import FlowIndex, IpcContext, ProviderIndex
-from .builder import ProcessBuilder
 from .tool import CachingRetroTool, Reaction, RetroTool
 from .zynth import ZynthClient, ZynthConfig, ZynthTool
 
 __all__ = [
     "AskcosClient",
-    "AskcosConfig",
+    "AskcosLogin",
     "AskcosModel",
     "CachingRetroTool",
     "CIR",

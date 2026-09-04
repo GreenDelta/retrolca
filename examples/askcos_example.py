@@ -10,14 +10,14 @@ def main():
     log.basicConfig(
         level=log.INFO, format="%(levelname)s %(name)s: %(message)s"
     )
-    config = retro.AskcosConfig.from_file(
+    login = retro.AskcosLogin.from_file(
         Path(__file__).parent.parent / "auth/remote-askcos.json"
     )
 
     ctx, err = retro.IpcContext.of(ipc.Client())
     assert ctx, err
 
-    with retro.AskcosClient(config) as tool:
+    with retro.AskcosClient(login) as tool:
         builder = retro.ProcessBuilder(
             ctx,
             tool,
@@ -27,7 +27,7 @@ def main():
         builder.build(
             "CCOP(=O)(OCC)OCC",
             name="triethyl phosphate",
-            category="Retrosynthesis/Inbox",
+            category="ASKCOS/Inbox",
         )
 
 

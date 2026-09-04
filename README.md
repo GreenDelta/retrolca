@@ -144,6 +144,8 @@ you can initialize the `ZynthTool` then, which wraps the AiZynthFinder in the
 example.
 
 ```python
+import retrolca as retro
+
 # finds the models/config.yml file relative to the current script file
 config = Path(__file__).parent.parent / "models/config.yml"
 
@@ -169,16 +171,31 @@ the following format:
 }
 ```
 
-If you use the public ASKCOS instance, the endpoint is
-`https://askcos.mit.edu/api`.
-
-The example in [examples/askcos_example.py](examples/askcos_example.py) loads
-that config, creates an `AskcosClient`, and uses it with `ProcessBuilder`.
+You can also use the public ASKCOS instance and enter
+`https://askcos.mit.edu/api` as the API endpoint. You can put that file for
+example under `auth/askcos_login.json`, then load it and connect to ASKCOS like
+this
 
 ```python
 
-import olca_ipc as ipc
-import retrolca as r
+import retrolca as retro
+
+
+with r.AskcosClient(config) as tool:
+  builder = r.ProcessBuilder(
+    ctx,
+    tool,
+    max_variants=2,
+    max_levels=2,
+    gen_process="83083965-4104-4c87-88af-bc200b6a520c",
+  )
+  builder.build(
+    "CCOP(=O)(OCC)OCC",
+    name="triethyl phosphate",
+    category="Retrosynthesis/Inbox",
+  )
+
+
 
 config = r.AskcosConfig.from_file(Path("auth/remote-askcos.json"))
 ctx, _ = r.IpcContext.of(ipc.Client())
