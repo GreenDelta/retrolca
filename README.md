@@ -20,7 +20,7 @@ linked to ecoinvent background data.
 ### The Python Environment and openLCA IPC
 
 `retrolca` is a Python project which can be quickly set up with
-[uv](https://docs.astral.sh/uv/). When you downloaded the project, you can then
+[uv](https://docs.astral.sh/uv/). When you download the project, you can then
 quickly install the required interpreter and dependencies via `uv sync`:
 
 ```bash
@@ -31,7 +31,7 @@ cd retrolca
 uv sync
 
 # modify and run the scripts in this project
-uv run exampels/...py
+uv run examples/...py
 ```
 
 As said above, `retrolca` communicates with openLCA via the [openLCA IPC
@@ -168,9 +168,9 @@ tool = r.ZynthTool(config)
 
 <details>
 
-<summary>Connecting to ASKCOS<summary>
+<summary>Connecting to ASKCOS</summary>
 
-`retrolca` can connect to an ASKCOS server instance via it's REST API. For this,
+`retrolca` can connect to an ASKCOS server instance via its REST API. For this,
 you need to provide the login data of a valid user account as a JSON file with
 the following format:
 
@@ -242,7 +242,7 @@ https://askcos.mit.edu/docs#/tree-search/askcos_run_retro_expansion_async
 
 We call the `/api/tree-search/expand-one/call-async` endpoint with the provided
 options. The schema for the options of that method is defined under
-`#compontnes/schemas/ExpandOneInput` in the API documentation.
+`#components/schemas/ExpandOneInput` in the API documentation.
 
 </details>
 
@@ -258,7 +258,7 @@ of retrolca and can be used everywhere where this protocol is expected.
 
 ```python
 caching_tool = r.CachingRetroTool("out/cached_reactions.db", tool)
-caching_too.expand("CCOP(=O)(OCC)OCC")
+caching_tool.expand("CCOP(=O)(OCC)OCC")
 # ...
 ```
 
@@ -341,28 +341,28 @@ review the synthesis route later in openLCA.
 
 <details>
 
-<summary>The paramaters of the `ProcessBuilder`</summary>
+<summary>The parameters of the `ProcessBuilder`</summary>
 
 When you create a `ProcessBuilder` it takes the following parameters:
 
 - `ctx` (required) - The openLCA IPC context, as described above.
 - `tool` (required) - The retrosynthesis tool, as described above.
-- `max_levels` (optional, default is `3`) - The maximum number levels or the
-  maximum depth of the of supply chain the process chain the process builder can
-  build. When the process builder transforms a chemical reaction into a process,
-  it first checks if the respective reactants already exist as product flows in
-  the databases, and if yes, it links the respective processes that produce
-  these products as providers of the inputs. If not, it recursively generates
-  processes for these inputs and links them.
+- `max_levels` (optional, default is `3`) - The maximum number of levels or the
+  maximum depth of the process chain the process builder can build. When the
+  process builder transforms a chemical reaction into a process, it first checks
+  if the respective reactants already exist as product flows in the databases,
+  and if yes, it links the respective processes that produce these products as
+  providers of the inputs. If not, it recursively generates processes for these
+  inputs and links them.
 - `max_variants` (optional, default is `1`) - For a chemical product, the
-  retrosynthesis tool can return multiple possible chemical reations with a
-  score for probability and feasability. It then selects the reaction with the
+  retrosynthesis tool can return multiple possible chemical reactions with a
+  score for probability and feasibility. It then selects the reaction with the
   best scores and generates a process for this. For a product input, this
   process is then linked as a provider. If `max_variants > 1`, it will also
   generate processes for the next best possible reactions. Note that in this
-  case, it can quickly result in a large number of processes, as for inputs of
-  these alternative, again processes are generated with the same rules of the
-  builder.
+  case, it can quickly result in a large number of processes, since processes
+  are again generated for the inputs of these alternatives according to the same
+  rules of the builder.
 - `gen_process` (optional, default is `None`) - The ID of a generic production
   process can be provided that is linked to every process the builder generates.
   This process needs to describe the generic production of chemicals per mass of
@@ -376,11 +376,13 @@ When you create a `ProcessBuilder` it takes the following parameters:
   process is a waste treatment process, the balancing flow will be a waste
   output linked to that waste treatment process. If a product process is
   provided, the balancing flow will be added as an _avoided_ product output
-  linked to that proces.
+  linked to that process.
 - `naming` (optional, default is a `CIR` instance) - The naming service as
   described above.
 
-As shown in the example above, the `build` method is then used to generate the process chains. The same builder instance can be used to build process chains for different chemicals. The `build` method takes the following arguments:
+As shown in the example above, the `build` method is then used to generate the
+process chains. The same builder instance can be used to build process chains
+for different chemicals. The `build` method takes the following arguments:
 
 - `smiles_code` (required) - The SMILES code of the chemical for which the chain
   (tree) of production processes should be created.
@@ -398,10 +400,10 @@ As shown in the example above, the `build` method is then used to generate the p
 
 ### Expanding existing processes
 
-As described in the details above, the `max_level` controls the depth of the
+As described in the details above, the `max_levels` controls the depth of the
 generated process chain. For the continuation of process chain creation, the
-`expand_process` method can be used. Which takes the ID of the process of which
-the supply chain should be completeted as argument:
+`expand_process` method can be used, which takes the ID of the process of which
+the supply chain should be completed as argument:
 
 ```python
 builder.expand_process(
@@ -413,9 +415,9 @@ builder.expand_process(
 ### Deleting generated processes
 
 When you use the multiple-variants feature of the process builder (which often
-makes sense as the reaction of the highest score is not necessarly the most
-realistic option), many processes could be created. The intended workflow of the
-builder would be, that you review and edit these generated processes, link them
-in product systems or move them from some _inbox_ category to another category
-of the database. After this, you can run the [cleanup.jy](examplas/cleanup.jy)
-script directly in openLCA to delete the other generated processes.
+makes sense as the reaction of the highest score is not necessarily the most
+realistic option), many processes could be created. The intended workflow is for
+you to review and edit these generated processes, link them in product systems
+or move them from some _inbox_ category to another category of the database.
+After this, you can run the [cleanup.jy](examples/cleanup.jy) script directly in
+openLCA to delete the other generated processes.
