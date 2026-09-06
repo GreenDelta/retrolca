@@ -50,6 +50,35 @@ if err:
   print("Failed to initialize the IPC context: ", err)
 ```
 
+<details>
+
+<summary>Configuring the provider selection</summary>
+
+If the database contains several processes producing the same chemical
+(identified by a SMILES code), the `IpcContext` uses a provider selector to
+decide which one is linked as provider when a process for that chemical is
+required. By default this is a `DefaultProviderSelector` that scores the
+candidate processes by their location (preferring `GLO`) and by their name
+(processes named `market for ...` or `... production` score higher). A custom
+selector can be passed to `IpcContext.of`; a selector receives the candidate
+providers of a chemical and returns the one to link:
+
+```python
+class LocalProviders(r.ProviderSelector):
+    def select(self, providers):
+        for p in providers:
+            if p.provider and p.provider.location == "DE":
+                return p
+        return providers[0] if providers else None
+
+ctx, err = r.IpcContext.of(ipc.Client(), provider_selector=LocalProviders())
+```
+
+Returning `None` skips linking, so the retrosynthesis builder would instead
+generate a new production process for that chemical.
+
+</details>
+
 
 ### The Background Database
 

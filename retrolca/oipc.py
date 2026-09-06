@@ -1,6 +1,6 @@
 import logging as log
 from dataclasses import dataclass
-from typing import cast
+from typing import Protocol, cast, override
 
 import olca_ipc as ipc
 import olca_schema as o
@@ -14,6 +14,58 @@ _MASS_ID = "93a60a56-a3c8-11da-a746-0800200b9a66"
 _CHEMICAL_AMOUNT_ID = "341fd786-b2ad-4552-a762-5eafcab45dee"
 
 
+class ProviderSelector(Protocol):
+    """Protocol for provider selectors.
+
+    When building process chains and for an input of a chemical a process
+    producing that chemical already exists in the database, that process is
+    linked as provider for the input. In case there are multiple processes
+    producing that chemical, a rule needs to be defined how the linked provider
+    is then selected. This is the role of a ProviderSelector then.
+    """
+
+    def select(self, providers: list[o.TechFlow]) -> o.TechFlow | None: ...
+
+
+class DefaultProviderSelector(ProviderSelector):
+    def __init__(self, preferred_location: str = "GLO"):
+        self.preferred_location = preferred_location
+
+    @override
+    def select(self, providers: list[o.TechFlow]) -> o.TechFlow | None:
+        if not providers:
+            return None
+        best: o.TechFlow | None = None
+        best_score = 0.0
+        for p in providers:
+            score = self.__score_of(p)
+            if not best or score > best_score:
+                best = p
+                best_score = score
+        return best
+
+    def __score_of(self, p: o.TechFlow) -> float:
+        if not p or not p.flow or not p.provider:
+            return 0.0
+        score = 0.0
+        if p.flow.name and p.provider.name:
+            market_prefix = "market for " + p.flow.name
+            prod_prefix = p.flow.name + " production"
+            if p.provider.name.startswith(market_prefix):
+                score += 8
+            elif p.provider.name.startswith(prod_prefix):
+                score += 5
+
+        if p.provider.location:
+            if p.provider.location == self.preferred_location:
+                score += 10
+            elif p.provider.location == "GLO":
+                score += 5
+            elif p.provider.location == "RoW":
+                score += 2
+        return score
+
+
 @dataclass
 class IpcContext:
     client: ipc.ProtoClient
@@ -21,9 +73,13 @@ class IpcContext:
     chem_amount: o.FlowProperty
     kg: o.Unit
     mole: o.Unit
+    provider_selector: ProviderSelector
 
     @staticmethod
-    def of(client: ipc.ProtoClient) -> Res["IpcContext"]:
+    def of(
+        client: ipc.ProtoClient,
+        provider_selector: ProviderSelector | None = None,
+    ) -> Res["IpcContext"]:
         mass = client.get(o.FlowProperty, _MASS_ID)
         if not mass:
             return nil, f"Flow property 'Mass' (id={_MASS_ID}) not found"
@@ -76,6 +132,11 @@ class IpcContext:
                 chem_amount=chem_amount,
                 kg=kg,
                 mole=mole,
+                provider_selector=(
+                    provider_selector
+                    if provider_selector
+                    else DefaultProviderSelector()
+                ),
             ),
             nil,
         )
@@ -150,7 +211,7 @@ class ProviderIndex:
     data: dict[str, o.TechFlow]
 
     @classmethod
-    def of(cls, ctx: IpcContext, preferred_location="GLO") -> "ProviderIndex":
+    def of(cls, ctx: IpcContext) -> "ProviderIndex":
         data = {}
         provider_idx = cls.__index_providers(ctx.client)
         for flow in ctx.client.get_all(o.Flow):
@@ -163,18 +224,7 @@ class ProviderIndex:
             providers = provider_idx.get(unwrap(flow.id))
             if not providers:
                 continue
-
-            score = 0
-            provider: o.TechFlow | None = None
-            for p in providers:
-                if not provider:
-                    provider = p
-                    score = cls.__score_of(p, preferred_location)
-                    continue
-                s = cls.__score_of(p, preferred_location)
-                if s > score:
-                    provider = p
-                    score = s
+            provider = ctx.provider_selector.select(providers)
             if provider:
                 data[smiles_code] = provider
         return cls(data)
@@ -193,28 +243,6 @@ class ProviderIndex:
                 provider_idx[p.flow.id] = ps
             ps.append(p)
         return provider_idx
-
-    @staticmethod
-    def __score_of(p: o.TechFlow, location: str) -> float:
-        if not p or not p.flow or not p.provider:
-            return 0.0
-        score = 0.0
-        if p.flow.name and p.provider.name:
-            market_prefix = "market for " + p.flow.name
-            prod_prefix = p.flow.name + " production"
-            if p.provider.name.startswith(market_prefix):
-                score += 8
-            elif p.provider.name.startswith(prod_prefix):
-                score += 5
-
-        if p.provider.location:
-            if p.provider.location == location:
-                score += 10
-            elif p.provider.location == "GLO":
-                score += 5
-            elif p.provider.location == "RoW":
-                score += 2
-        return score
 
     def get(self, smiles_code: str) -> o.TechFlow | None:
         return self.data.get(smiles_code)
