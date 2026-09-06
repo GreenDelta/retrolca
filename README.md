@@ -39,7 +39,8 @@ interface](https://greendelta.github.io/openLCA-ApiDoc/). In openLCA, activate
 the database where you want to generate the processes and start the IPC server
 via `Tools > Developer tools > IPC Server`. On the `retrolca` side, you then
 initialize the `IpcContext` which checks the connected database (see below) and
-creates an index of the required flow properties and chemical flows:
+creates an index of the required flow properties and chemical flows. It is then
+used to link and create datasets in openLCA:
 
 ```python
 import retrolca as r
@@ -328,97 +329,93 @@ builder.build(
 )
 ```
 
-
-of the workflow. You provide an
-`IpcContext`, a retrosynthesis tool, and the limits for the search space,
-especially the maximum number of variants (`max_variants`) and the maximum
-depth of the generated process chain (`max_levels`). Optionally, you can also
-provide a generic production process via `gen_process`.
-
-For every retrosynthesis step, the builder sorts the returned reactions by
-their confidence and always builds the variants with the highest score. The
-confidence is calculated from retrosynthesis score and feasibility and is also
-stored in the generated process name. For each reactant, the builder first
-tries to link an existing provider from the background database. If no suitable
-provider can be linked, it descends recursively until the configured maximum
-depth is reached and creates the missing intermediate processes on the way.
-
-If `gen_process` is set, each generated process also gets an input from this
-generic production process. The referenced process must have a single product
-output measured in mass. Since each generated process has a product output of
-1 mol, `ProcessBuilder` uses the molar mass of that product to calculate the
-corresponding mass input from the generic production process.
-
-
-
-By default, `ProcessBuilder` uses `CIR`, but any implementation of the
-`NamingService` protocol can be passed via the `naming` argument. This makes
-the naming lookup configurable in the same way as the retrosynthesis backend.
-
-```python
-import olca_ipc as ipc
-import retrolca as r
-
-tool = r.CachingRetroTool(
-    "cache.sqlite", r.ZynthTool("models/config.yml"),
-)
-naming = r.CachingNamingService("cache.sqlite", r.CIR())
-ctx, _ = r.IpcContext.of(ipc.Client())
-builder = r.ProcessBuilder(
-    ctx,
-    tool,
-    naming=naming,
-)
-builder.build("CCCCN1CCCC1=O", category="Retrosynthesis/Inbox")
-```
-
-
-
-```python
-import olca_ipc as ipc
-import retrolca as r
-
-tool = r.ZynthTool(Path("models/config.yml"))
-ctx, _ = r.IpcContext.of(ipc.Client())
-builder = r.ProcessBuilder(
-  ctx,
-  tool,
-  max_levels=5,
-  max_variants=2,
-  gen_process="83083965-4104-4c87-88af-bc200b6a520c",
-)
-builder.build(
-  "CCCCN1CCCC1=O",
-  "1-butylpyrrolidin-2-one",
-  category="Retrosynthesis/Inbox",
-)
-```
-
 This example should then generate the following processes:
 
 ![Process tree](img/process_tree.png)
-
-
-
-## Components
-
-The project uses the following external components:
-
-- [AiZynthFinder](https://github.com/MolecularAI/aizynthfinder): the
-  retrosynthesis engine behind the local `aizynthfinder` integration.
-- [CIRpy](https://cirpy.readthedocs.io/en/latest/): used to resolve chemical
-  names from SMILES codes, because retrosynthesis tools often return only
-  structures and no compound names.
-- [olca-ipc.py](https://github.com/GreenDelta/olca-ipc.py): the Python client
-  used for communication with the openLCA IPC server.
-- [RDKit](https://www.rdkit.org/): used for molar-mass calculations,
-  generating reaction images, normalizing SMILES strings, and related cheminformatics tasks.
-- [Requests](https://requests.readthedocs.io/en/latest/): used for HTTP
-  communication with the ASKCOS API and other web services such as PubChem.
-
 
 For each generated process, `retrolca` also creates a reaction image
 showing the reactants together with the product, making it easy to
 review the synthesis route later in openLCA.
 
 ![Reaction image](img/reactants.png)
+
+<details>
+
+<summary>The paramaters of the `ProcessBuilder`</summary>
+
+When you create a `ProcessBuilder` it takes the following parameters:
+
+- `ctx` (required) - The openLCA IPC context, as described above.
+- `tool` (required) - The retrosynthesis tool, as described above.
+- `max_levels` (optional, default is `3`) - The maximum number levels or the
+  maximum depth of the of supply chain the process chain the process builder can
+  build. When the process builder transforms a chemical reaction into a process,
+  it first checks if the respective reactants already exist as product flows in
+  the databases, and if yes, it links the respective processes that produce
+  these products as providers of the inputs. If not, it recursively generates
+  processes for these inputs and links them.
+- `max_variants` (optional, default is `1`) - For a chemical product, the
+  retrosynthesis tool can return multiple possible chemical reations with a
+  score for probability and feasability. It then selects the reaction with the
+  best scores and generates a process for this. For a product input, this
+  process is then linked as a provider. If `max_variants > 1`, it will also
+  generate processes for the next best possible reactions. Note that in this
+  case, it can quickly result in a large number of processes, as for inputs of
+  these alternative, again processes are generated with the same rules of the
+  builder.
+- `gen_process` (optional, default is `None`) - The ID of a generic production
+  process can be provided that is linked to every process the builder generates.
+  This process needs to describe the generic production of chemicals per mass of
+  product output (this is also known as the _Gendorf Approach_). It is then
+  linked with 1 kg as input for every generated process, as the builder always
+  generates processes related to 1 kg of product output.
+- `bal_process` (optional, default is `None`) - In the generated process, the
+  mass of the reactant inputs is in most cases smaller than the mass of the
+  product output, so `< 1 kg`. A balancing process can be provided, that is
+  linked with that difference to an output. In case the provided balancing
+  process is a waste treatment process, the balancing flow will be a waste
+  output linked to that waste treatment process. If a product process is
+  provided, the balancing flow will be added as an _avoided_ product output
+  linked to that proces.
+- `naming` (optional, default is a `CIR` instance) - The naming service as
+  described above.
+
+As shown in the example above, the `build` method is then used to generate the process chains. The same builder instance can be used to build process chains for different chemicals. The `build` method takes the following arguments:
+
+- `smiles_code` (required) - The SMILES code of the chemical for which the chain
+  (tree) of production processes should be created.
+- `name` (optional, default is `None`) - The name of the _root_ chemical. If not
+  provided, the naming service of the builder will be used to determine the name
+  but this is often not necessary as the name of this chemical is typically
+  known.
+- `category` (optional, default is `None`) - An optional category path under
+  which the generated processes and products will be stored. Additionally, the
+  processes will be stored under sub-categories for the levels of these
+  processes.
+
+</details>
+
+
+### Expanding existing processes
+
+As described in the details above, the `max_level` controls the depth of the
+generated process chain. For the continuation of process chain creation, the
+`expand_process` method can be used. Which takes the ID of the process of which
+the supply chain should be completeted as argument:
+
+```python
+builder.expand_process(
+    "c74ccb59-b79a-4d51-8df0-33f7320f4b53",
+    category="Retrosynthesis/Inbox",
+)
+```
+
+### Deleting generated processes
+
+When you use the multiple-variants feature of the process builder (which often
+makes sense as the reaction of the highest score is not necessarly the most
+realistic option), many processes could be created. The intended workflow of the
+builder would be, that you review and edit these generated processes, link them
+in product systems or move them from some _inbox_ category to another category
+of the database. After this, you can run the [cleanup.jy](examplas/cleanup.jy)
+script directly in openLCA to delete the other generated processes.

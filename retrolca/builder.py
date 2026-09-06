@@ -30,8 +30,8 @@ class ProcessBuilder:
         self,
         ctx: oipc.IpcContext,
         tool: tool.RetroTool,
-        max_variants=3,
-        max_levels=5,
+        max_levels=3,
+        max_variants=1,
         gen_process: str | None = None,
         bal_process: str | None = None,
         naming: NamingService = CIR(),
@@ -43,14 +43,14 @@ class ProcessBuilder:
                 The IPC context for data exchange with openLCA.
             tool:
                 The retrosynthesis tool.
-            max_variants:
-                The maximum number of process variants that can be created at
-                each level. Default is 3.
             max_levels:
                 The maximum number of levels, or supply-chain depth, to
                 generate. At each level, the builder tries to link providers.
                 If no provider can be linked earlier, generation continues up
-                to this depth. Default is 5.
+                to this depth. Default is 3.
+            max_variants:
+                The maximum number of process variants that can be created at
+                each level. Default is 1.
             gen_process:
                 An optional ID of a generic chemical production process that
                 should be linked to the generated processes. This process needs
