@@ -197,10 +197,18 @@ class ProcessBuilder:
                     smiles_i, category, level + 1
                 )
                 if not provider:
+                    log.warning(
+                        "Could not resolve an input flow for SMILES=%s",
+                        smiles_i,
+                    )
                     continue
                 flow = unwrap(provider.flow)
                 mm_react = self.ctx.molar_mass_of(flow)
                 if not mm_react:
+                    log.warning(
+                        "No molar mass for input flow '%s'; skipping input",
+                        flow.name,
+                    )
                     continue
 
                 # with n: chemical amount, m: mass, and mm: molar mass
@@ -283,13 +291,22 @@ class ProcessBuilder:
     ) -> o.TechFlow | None:
         if p := self.providers.get(smiles_code):
             return p
-        if level > self.max_levels:
-            flow = self.__resolve_product(smiles_code, category=category)
-            return o.TechFlow(flow=flow.to_ref()) if flow else None
-        processes = self.build(smiles_code, category=category, level=level)
-        if len(processes) == 0:
-            return None
-        return self.providers.put(smiles_code, processes[0])
+        if level <= self.max_levels:
+            processes = self.build(smiles_code, category=category, level=level)
+            if len(processes) > 0:
+                return self.providers.put(smiles_code, processes[0])
+            log.info(
+                "No process generated for SMILES=%s; linking the product "
+                "flow as an input without a provider",
+                smiles_code,
+            )
+        # Either the maximum depth is reached or no process could be generated
+        # for this chemical (e.g. the retrosynthesis tool returned no
+        # reaction). In both cases we still link the product flow as an input
+        # without a provider so that the generated process does not silently
+        # miss this input.
+        flow = self.__resolve_product(smiles_code, category=category)
+        return o.TechFlow(flow=flow.to_ref()) if flow else None
 
     def __resolve_product(
         self,
