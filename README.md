@@ -424,6 +424,14 @@ for different chemicals. The `build` method takes the following arguments:
   processes will be stored under sub-categories for the levels of these
   processes.
 
+When the same chemical appears again on the current build path, i.e. when the
+reactions contain a cycle (for example A needs B, B needs C, and C needs A
+again), the builder does not generate another process for that chemical. It
+stores the process that is currently generated as a stub first, so that the
+recurring input can be linked back to it, and completes it afterwards. Thus, in
+general builder reuses processes it has already generated when it is asked to
+build the same chemical again.
+
 </details>
 
 
