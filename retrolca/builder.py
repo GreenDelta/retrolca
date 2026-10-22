@@ -140,6 +140,7 @@ class ProcessBuilder:
         name: str | None = None,
         category: str | None = None,
         level=0,
+        expanded_reactions: frozenset[str] = frozenset(),
     ) -> list[o.Process]:
         """Build process variants for a product SMILES code.
 
@@ -158,6 +159,13 @@ class ProcessBuilder:
             level:
                 The current recursion level. This is managed internally during
                 recursive expansion and usually stays at the default value.
+            expanded_reactions:
+                The reaction SMILES keys that have already been expanded on
+                the current path to this product. Reactions that are already
+                in this set are not expanded again, which avoids cycles in
+                the generated process graph. This is managed internally
+                during recursive expansion and usually stays at the default
+                value.
         """
         smiles_code = smiles.canonicalize(smiles_code)
         log.info(
@@ -169,7 +177,7 @@ class ProcessBuilder:
         mm_prod = self.ctx.molar_mass_of(ref_flow)
         if not mm_prod:
             return []
-        reactions = self.__get_reactions(smiles_code)
+        reactions = self.__get_reactions(smiles_code, expanded_reactions)
         if len(reactions) == 0:
             return []
 
@@ -177,24 +185,17 @@ class ProcessBuilder:
         processes = []
         for reaction in reactions:
             variant += 1
+            reaction_key = smiles.reaction_smiles(reaction.smiles, smiles_code)
+            next_expanded = expanded_reactions | {reaction_key}
             process = self.__init_process(
                 ref_flow, reaction, variant, smiles_code, category, level
             )
-
-            if variant == 1:
-                # Store a stub of the process and register it as the provider
-                # for this product before resolving its inputs. openLCA does
-                # not allow references to datasets that do not exist yet, so
-                # the process (with its quantitative reference output) must be
-                # persisted before a reaction cycle can link back to it.
-                self.ctx.client.put(process)
-                self.providers.put(smiles_code, process)
 
             input_mass = 0.0
             for si in reaction.smiles:
                 smiles_i = smiles.canonicalize(si)
                 provider = self.__resolve_provider(
-                    smiles_i, category, level + 1
+                    smiles_i, category, level + 1, next_expanded
                 )
                 if not provider:
                     log.warning(
@@ -230,15 +231,22 @@ class ProcessBuilder:
             if input_mass > 1.0 and self.bal_provider:
                 self.__add_bal_exchange(process, input_mass - 1.0)
 
-            # Update the process with its resolved inputs. For the first
-            # variant this overwrites the stub that was stored above.
+            # Store the process only after its inputs have been resolved and
+            # register it as the provider for this product afterwards. If the
+            # provider was registered earlier, a reaction that links back to
+            # an ancestor would be short-circuited by the provider index and
+            # the path filter could not cut the cycle.
             self.ctx.client.put(process)
+            if variant == 1:
+                self.providers.put(smiles_code, process)
             log.info("Stored process %s", process.name)
             processes.append(process)
 
         return processes
 
-    def __get_reactions(self, smiles_code: str) -> list[tool.Reaction]:
+    def __get_reactions(
+        self, smiles_code: str, expanded_reactions: frozenset[str]
+    ) -> list[tool.Reaction]:
         reactions, err = self.tool.expand(smiles_code)
         if err:
             log.info(
@@ -251,10 +259,38 @@ class ProcessBuilder:
             log.info("No retrosynthesis results retrieved for: %s", smiles_code)
             return []
 
-        reactions.sort(key=lambda r: r.score * r.feasibility, reverse=True)
-        if len(reactions) > self.max_variants:
-            reactions = reactions[0 : self.max_variants]
-        return reactions
+        # Reactions that have already been expanded on the current path
+        # would close a cycle in the generated process graph and are
+        # therefore ignored. The filter is applied before the variants are
+        # truncated so that a cycle does not consume a variant slot.
+        skipped: list[str] = []
+        candidates: list[tool.Reaction] = []
+        for reaction in reactions:
+            key = smiles.reaction_smiles(reaction.smiles, smiles_code)
+            if key in expanded_reactions:
+                skipped.append(key)
+            else:
+                candidates.append(reaction)
+        if skipped:
+            log.info(
+                "Ignoring %d reaction(s) already expanded on the current "
+                "path for SMILES=%s: %s",
+                len(skipped),
+                smiles_code,
+                ", ".join(skipped),
+            )
+        if not candidates:
+            log.info(
+                "All reactions for SMILES=%s are on the current path; "
+                "cutting the cycle",
+                smiles_code,
+            )
+            return []
+
+        candidates.sort(key=lambda r: r.score * r.feasibility, reverse=True)
+        if len(candidates) > self.max_variants:
+            candidates = candidates[0 : self.max_variants]
+        return candidates
 
     def __init_process(
         self,
@@ -287,12 +323,21 @@ class ProcessBuilder:
         return process
 
     def __resolve_provider(
-        self, smiles_code: str, category: str | None, level: int
+        self,
+        smiles_code: str,
+        category: str | None,
+        level: int,
+        expanded_reactions: frozenset[str] = frozenset(),
     ) -> o.TechFlow | None:
         if p := self.providers.get(smiles_code):
             return p
         if level <= self.max_levels:
-            processes = self.build(smiles_code, category=category, level=level)
+            processes = self.build(
+                smiles_code,
+                category=category,
+                level=level,
+                expanded_reactions=expanded_reactions,
+            )
             if len(processes) > 0:
                 return self.providers.put(smiles_code, processes[0])
             log.info(

@@ -25,6 +25,19 @@ def canonicalize(smiles: str) -> str:
     return Chem.MolToSmiles(mol, isomericSmiles=True, canonical=True)  # ty: ignore
 
 
+def reaction_smiles(reactants: list[str], product: str) -> str:
+    """Returns a stable reaction SMILES key for the given reaction.
+
+    The key follows the reaction SMILES standard
+    ``reactants>agents>products`` with an empty agents section. The reactants
+    are canonicalized and sorted so that the key does not depend on the order
+    in which a retrosynthesis tool returns them.
+    """
+    codes = [canonicalize(code) for code in reactants]
+    codes = sorted(code for code in codes if code)
+    return f"{'.'.join(codes)}>>{canonicalize(product)}"
+
+
 def mol_weight(smiles: str) -> float | None:
     if not smiles or smiles == "":
         return None
